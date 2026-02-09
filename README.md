@@ -1,70 +1,290 @@
-# Getting Started with Create React App
+# 🏋️ FitLife Pro
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+**Your personalized fitness and nutrition companion** - Get custom workout plans and diet plans tailored to your goals, fitness level, and dietary preferences.
 
-## Available Scripts
+![FitLife](public/assets/images/fitlife-logo.png)
 
-In the project directory, you can run:
+---
 
-### `npm start`
+## ✨ Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 📊 Systematic Plan Generation
+- **572 Pre-Designed Plans** - Scientifically crafted combinations
+- **312 Workout Plans** - Based on BMI, location, fitness level, and goals
+- **260 Diet Plans** - Customized for BMI, goals, and dietary restrictions
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### 🏋️ Workout Plans
+- **13 BMI Levels** (16-40) for precise personalization
+- **2 Locations**: Home workouts or Gym routines
+- **3 Fitness Levels**: Beginner, Intermediate, Advanced
+- **4 Goals**: Weight Loss, Weight Gain, Endurance, Muscle Gain
+- **5-Day Training Splits** with detailed exercises
 
-### `npm test`
+### 🥗 Diet Plans
+- **6-Meal Structure**: Breakfast, Snacks, Lunch, Dinner
+- **5 Diet Types**:
+  - Standard (Balanced)
+  - Vegetarian
+  - Vegan
+  - Gluten-Free
+  - Dairy-Free
+- **Goal-Specific Macros**: Optimized for your fitness objectives
+- **Calorie Scaling**: Automatically adjusted based on BMI
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### 🎯 User Features
+- **Save Plans** - Store your favorite workout and diet plans
+- **Workout Timer** - Built-in timer for exercises
+- **Progress Analytics** - Track your fitness journey
+- **Workout Templates** - Pre-made routines for quick starts
+- **Feedback System** - Share your experience
 
-### `npm run build`
+### 🔐 Authentication
+- **Secure Login/Signup** - JWT-based authentication
+- **Email Verification** - Verify your account via email
+- **Password Reset** - Secure password recovery
+- **Protected Routes** - Secure user data
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+---
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 🚀 Tech Stack
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Frontend
+- **React** - UI library
+- **Tailwind CSS** - Styling
+- **Lucide React** - Icons
+- **React Router** - Navigation (SPA)
 
-### `npm run eject`
+### Backend
+- **Node.js** - Runtime
+- **Express** - Web framework
+- **MongoDB** - Database
+- **Mongoose** - ODM
+- **JWT** - Authentication
+- **Brevo** - Email service
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+---
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## 📦 Installation
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Prerequisites
+- Node.js (v14+)
+- MongoDB (local or Atlas)
+- npm or yarn
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### 1. Clone Repository
+```bash
+git clone https://github.com/YOUR_USERNAME/fitlife-pro.git
+cd fitlife-pro
+```
 
-## Learn More
+### 2. Install Dependencies
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+**Frontend:**
+```bash
+npm install
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+**Backend:**
+```bash
+cd backend
+npm install
+```
 
-### Code Splitting
+### 3. Environment Variables
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+**Frontend** (`.env`):
+```env
+REACT_APP_API_URL=http://localhost:5000/api
+```
 
-### Analyzing the Bundle Size
+**Backend** (`backend/.env`):
+```env
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret_key
+BREVO_API_KEY=your_brevo_api_key
+EMAIL_FROM=your_email@example.com
+PORT=5000
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### 4. Run Application
 
-### Making a Progressive Web App
+**Backend** (Terminal 1):
+```bash
+cd backend
+npm run dev
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+**Frontend** (Terminal 2):
+```bash
+npm start
+```
 
-### Advanced Configuration
+**Access**: Open http://localhost:3000
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+---
 
-### Deployment
+## 🎯 User Workflow
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+### 1. **Sign Up / Login**
+   - Create account with email verification
+   - Or login with existing credentials
 
-### `npm run build` fails to minify
+### 2. **Generate Personalized Plan**
+   - Enter your details (age, weight, height, gender)
+   - Choose your goal (Weight Loss, Muscle Gain, etc.)
+   - Select fitness level and location
+   - Pick dietary preferences
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+### 3. **View Your Plan**
+   - See workout schedule (5-day split)
+   - View diet plan (6 meals per day)
+   - Check calories and macros
+
+### 4. **Save & Track**
+   - Save plans to your account
+   - Access saved plans anytime
+   - Track progress with analytics
+
+### 5. **Use Workout Features**
+   - Start workout timer
+   - Browse workout templates
+   - Follow structured routines
+
+---
+
+## 📱 Pages & Routes
+
+| Route | Description |
+|-------|-------------|
+| `/` | Home page with app overview |
+| `/auth` | Login / Signup page |
+| `/input` | User details input form |
+| `/plan` | Generated workout & diet plan |
+| `/saved` | Saved plans library |
+| `/templates` | Pre-made workout templates |
+| `/timer` | Workout timer |
+| `/analytics` | Progress tracking |
+
+---
+
+## 🏗️ Project Structure
+
+```
+fitlife-pro/
+├── public/              # Static assets
+│   ├── assets/images/   # Images
+│   ├── favicon.png      # App icon
+│   └── index.html       # HTML template
+├── src/
+│   ├── components/      # React components
+│   ├── contexts/        # Context providers
+│   ├── services/        # API services
+│   ├── plans.js         # Plan generation logic
+│   └── App.js           # Main app component
+├── backend/
+│   ├── controllers/     # Request handlers
+│   ├── models/          # MongoDB schemas
+│   ├── routes/          # API routes
+│   ├── middleware/      # Auth middleware
+│   └── server.js        # Express server
+└── package.json         # Dependencies
+```
+
+---
+
+## 🔧 Available Scripts
+
+### Frontend
+```bash
+npm start          # Development server
+npm run build      # Production build
+npm run build:prod # Optimized production build
+```
+
+### Backend
+```bash
+npm run dev        # Development server with nodemon
+npm start          # Production server
+```
+
+---
+
+## 🎨 Performance Optimizations
+
+- ✅ **Code Splitting** - Lazy loading for faster initial load
+- ✅ **Image Optimization** - WebP conversion for 70-80% size reduction
+- ✅ **Caching Strategy** - Long-term caching for static assets
+- ✅ **Minification** - Optimized production builds
+- ✅ **Back/Forward Cache** - Instant page navigation
+
+**Target Lighthouse Score**: 75-85
+
+---
+
+## 🔒 Security Features
+
+- JWT-based authentication
+- Password hashing with bcrypt
+- Email verification required
+- Protected API routes
+- Environment variable protection
+- CORS configuration
+
+---
+
+## 📄 API Endpoints
+
+### Authentication
+- `POST /api/auth/register` - Create account
+- `POST /api/auth/login` - User login
+- `GET /api/auth/verify/:token` - Email verification
+
+### Plans
+- `POST /api/plans` - Save plan
+- `GET /api/plans` - Get user's plans
+- `DELETE /api/plans/:id` - Delete plan
+
+### Feedback
+- `POST /api/feedback` - Submit feedback
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add AmazingFeature'`)
+4. Push to branch (`git push origin feature/AmazingFeature`)
+5. Open Pull Request
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License.
+
+---
+
+## 👨‍💻 Author
+
+**Your Name**
+- GitHub: [@yourusername](https://github.com/yourusername)
+
+---
+
+## 🙏 Acknowledgments
+
+- Workout encyclopedia data
+- Diet encyclopedia data
+- React community
+- MongoDB documentation
+
+---
+
+## 📞 Support
+
+For support, email your_email@example.com or open an issue on GitHub.
+
+---
+
+**Made with ❤️ for fitness enthusiasts**
