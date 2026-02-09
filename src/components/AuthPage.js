@@ -13,7 +13,6 @@ const AuthPage = ({ onAuthSuccess }) => {
     const [showOTPInput, setShowOTPInput] = useState(false);
     const [otp, setOTP] = useState('');
     const [pendingEmail, setPendingEmail] = useState('');
-    const [pendingName, setPendingName] = useState('');
     const [resendCountdown, setResendCountdown] = useState(0);
 
     const { login } = useAuth();
@@ -56,7 +55,6 @@ const AuthPage = ({ onAuthSuccess }) => {
             // Check if verification is required
             if (result.data?.requiresVerification) {
                 setPendingEmail(result.data.email);
-                setPendingName(result.data.name);
                 setShowOTPInput(true);
                 setResendCountdown(60);
                 setSuccess('Please verify your email to continue. OTP sent!');
@@ -95,7 +93,6 @@ const AuthPage = ({ onAuthSuccess }) => {
 
             if (response.success) {
                 setPendingEmail(registerData.email);
-                setPendingName(registerData.name);
                 setShowOTPInput(true);
                 setResendCountdown(60); // Start 60-second countdown
                 setSuccess('OTP sent to your email! Please check your inbox.');
