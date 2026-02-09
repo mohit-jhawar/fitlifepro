@@ -133,23 +133,6 @@ fitlife-pro/
 
 ---
 
-## 🔧 Available Scripts
-
-### Frontend
-```bash
-npm start          # Development server
-npm run build      # Production build
-npm run build:prod # Optimized production build
-```
-
-### Backend
-```bash
-npm run dev        # Development server with nodemon
-npm start          # Production server
-```
-
----
-
 ## 🎨 Performance Optimizations
 
 - ✅ **Code Splitting** - Lazy loading for faster initial load
@@ -188,28 +171,11 @@ npm start          # Production server
 ### Feedback
 - `POST /api/feedback` - Submit feedback
 
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License.
-
----
 
 ## 👨‍💻 Author
 
 **Your Name**
-- GitHub: [@yourusername](https://github.com/yourusername)
+- GitHub: [Mohit Jhawar](https://github.com/mohit-jhawar)
 
 ---
 
@@ -224,7 +190,7 @@ This project is licensed under the MIT License.
 
 ## 📞 Support
 
-For support, email your_email@example.com or open an issue on GitHub.
+For support, email mohitjhawar1128@gmail.com or open an issue on GitHub.
 
 ---
 
