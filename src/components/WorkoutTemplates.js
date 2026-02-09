@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Clock, Calendar, Dumbbell, Target, TrendingUp, CheckCircle, Play, Youtube } from 'lucide-react';
+import { ArrowLeft, Clock, Calendar, Dumbbell, Target, TrendingUp, CheckCircle, Youtube } from 'lucide-react';
 import workoutTemplates from '../data/workoutTemplates';
 
 const WorkoutTemplates = ({ onBack, onSelectTemplate }) => {

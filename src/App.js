@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Heart, Folder, Trash2, ArrowLeft, Dumbbell, Utensils, Calendar, Quote, TrendingUp, Award, User, Home, MessageCircle, Mail, Bell, Droplet, Settings, LogIn, LogOut, Clock, Zap, CheckCircle, Youtube, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Heart, Folder, Trash2, ArrowLeft, Dumbbell, Utensils, Calendar, Quote, TrendingUp, Award, User, Home, MessageCircle, Mail, Bell, Settings, LogIn, LogOut, Clock, Zap, Youtube, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import { plansAPI, workoutsAPI, feedbackAPI } from './services/api';
 
 import { getWorkoutPlan as generateWorkoutPlan, getDietPlan as generateDietPlan } from './plans';
@@ -24,6 +24,7 @@ const App = () => {
 
   const [showToast, setShowToast] = useState(false);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [pendingPlanSave, setPendingPlanSave] = useState(null);
   const [showTimer, setShowTimer] = useState(false);
   const [workoutSessions, setWorkoutSessions] = useState([]);
@@ -77,72 +78,7 @@ const App = () => {
     { category: "Obese", range: "≥ 30", icon: "🎪", description: "Significantly above healthy weight" }
   ];
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadPlans();
-      loadWorkoutSessions();
-    }
-  }, [isAuthenticated]);
 
-  useEffect(() => {
-    loadPlans();
-    loadPreferences();
-    loadReminders();
-    loadWorkoutSessions();
-    const quoteInterval = setInterval(() => {
-      setCurrentQuote(motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]);
-    }, 10000);
-    return () => clearInterval(quoteInterval);
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      setUserMetrics(prev => ({
-        ...prev,
-        name: user.name || prev.name,
-        weight: user.weight || prev.weight,
-        height: user.height || prev.height,
-        gender: user.gender || prev.gender
-      }));
-    }
-  }, [user]);
-
-  // Handle click outside to close user dropdown
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (userDropdownOpen && !event.target.closest('.user-dropdown-container')) {
-        setUserDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [userDropdownOpen]);
-
-  // Handle browser back button
-  useEffect(() => {
-    const handlePopState = (event) => {
-      if (event.state && event.state.view) {
-        setCurrentView(event.state.view);
-      } else {
-        // If no state, go to home
-        setCurrentView('home');
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (reminders?.workout?.enabled || reminders?.breakfast?.enabled || reminders?.lunch?.enabled || reminders?.dinner?.enabled || reminders?.water?.enabled) {
-      checkAndShowReminders();
-      const reminderInterval = setInterval(checkAndShowReminders, 60000);
-      return () => clearInterval(reminderInterval);
-    }
-  }, [reminders]);
 
   const loadPreferences = async () => {
     try {
@@ -165,18 +101,7 @@ const App = () => {
     }
   };
 
-  const savePreferences = async () => {
-    try {
-      if (window.storage && window.storage.set) {
-        await window.storage.set('user_preferences', JSON.stringify(preferences));
-      } else {
-        localStorage.setItem('user_preferences', JSON.stringify(preferences));
-      }
-      setValidationDialog({ show: true, message: 'Preferences saved successfully!' });
-    } catch (error) {
-      setValidationDialog({ show: true, message: 'Failed to save preferences' });
-    }
-  };
+
 
   const loadReminders = async () => {
     try {
@@ -199,20 +124,9 @@ const App = () => {
     }
   };
 
-  const saveReminders = async () => {
-    try {
-      if (window.storage && window.storage.set) {
-        await window.storage.set('user_reminders', JSON.stringify(reminders));
-      } else {
-        localStorage.setItem('user_reminders', JSON.stringify(reminders));
-      }
-      setValidationDialog({ show: true, message: 'Reminders saved successfully!' });
-    } catch (error) {
-      setValidationDialog({ show: true, message: 'Failed to save reminders' });
-    }
-  };
 
-  const checkAndShowReminders = () => {
+
+  const checkAndShowReminders = useCallback(() => {
     const now = new Date();
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -231,7 +145,7 @@ const App = () => {
     if (reminders?.water?.enabled && now.getMinutes() % reminders.water.interval === 0) {
       showNotification('💧 Hydration Reminder!', 'Time to drink some water!');
     }
-  };
+  }, [reminders]);
 
   const showNotification = (title, body) => {
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -313,7 +227,6 @@ const App = () => {
   const deletePlan = async (id) => {
     if (!id) return;
 
-    const oldPlans = [...savedPlans];
     setSavedPlans(prev => prev.filter(p => p.plan_id !== id && p.id !== id));
 
     if (isAuthenticated && typeof id === 'string' && id.length > 20) {
@@ -335,7 +248,7 @@ const App = () => {
     }
   };
 
-  const loadPlans = async () => {
+  const loadPlans = useCallback(async () => {
     try {
       let apiPlans = [];
       if (isAuthenticated) {
@@ -357,7 +270,7 @@ const App = () => {
       console.error('Error loading plans:', error);
       setSavedPlans([]);
     }
-  };
+  }, [isAuthenticated]);
 
   const calculateBMI = (weight, height) => {
     const heightInMeters = height / 100;
@@ -373,7 +286,7 @@ const App = () => {
 
 
 
-  const loadWorkoutSessions = async () => {
+  const loadWorkoutSessions = useCallback(async () => {
     // Only load if authenticated
     if (!isAuthenticated) {
       setWorkoutSessions([]);
@@ -405,7 +318,7 @@ const App = () => {
     // Sort by date descending
     sessions.sort((a, b) => new Date(b.date) - new Date(a.date));
     setWorkoutSessions(sessions);
-  };
+  }, [isAuthenticated]);
 
   const saveWorkoutSession = async (session) => {
     // Only save if authenticated
@@ -672,6 +585,73 @@ const App = () => {
     // Navigate to custom plan page
     navigateTo(customType);
   };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadPlans();
+      loadWorkoutSessions();
+    }
+  }, [isAuthenticated, loadPlans, loadWorkoutSessions]);
+
+  useEffect(() => {
+    loadPlans();
+    loadPreferences();
+    loadReminders();
+    loadWorkoutSessions();
+    const quoteInterval = setInterval(() => {
+      setCurrentQuote(motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]);
+    }, 10000);
+    return () => clearInterval(quoteInterval);
+  }, [loadPlans, loadWorkoutSessions]);
+
+  useEffect(() => {
+    if (user) {
+      setUserMetrics(prev => ({
+        ...prev,
+        name: user.name || prev.name,
+        weight: user.weight || prev.weight,
+        height: user.height || prev.height,
+        gender: user.gender || prev.gender
+      }));
+    }
+  }, [user]);
+
+  // Handle click outside to close user dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userDropdownOpen && !event.target.closest('.user-dropdown-container')) {
+        setUserDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [userDropdownOpen]);
+
+  // Handle browser back button
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (event.state && event.state.view) {
+        setCurrentView(event.state.view);
+      } else {
+        // If no state, go to home
+        setCurrentView('home');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (reminders?.workout?.enabled || reminders?.breakfast?.enabled || reminders?.lunch?.enabled || reminders?.dinner?.enabled || reminders?.water?.enabled) {
+      checkAndShowReminders();
+      const reminderInterval = setInterval(checkAndShowReminders, 60000);
+      return () => clearInterval(reminderInterval);
+    }
+  }, [reminders, checkAndShowReminders]);
 
   const Navbar = () => (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-black/30 backdrop-blur-lg border-b border-white/10">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, User, Calendar, ArrowLeft, Eye, EyeOff, Shield, RefreshCw } from 'lucide-react';
+import { Mail, Lock, User, Calendar, ArrowLeft, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { authAPI } from '../services/api';
 
@@ -16,7 +16,7 @@ const AuthPage = ({ onAuthSuccess }) => {
     const [pendingName, setPendingName] = useState('');
     const [resendCountdown, setResendCountdown] = useState(0);
 
-    const { login, register } = useAuth();
+    const { login } = useAuth();
 
     const [loginData, setLoginData] = useState({
         email: '',
