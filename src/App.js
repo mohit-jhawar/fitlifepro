@@ -155,11 +155,7 @@ const App = () => {
     }
   };
 
-  const requestNotificationPermission = async () => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      await Notification.requestPermission();
-    }
-  };
+
 
 
   const navigateTo = (view) => {
@@ -227,13 +223,29 @@ const App = () => {
   const deletePlan = async (id) => {
     if (!id) return;
 
+    // Optimistically update UI
     setSavedPlans(prev => prev.filter(p => p.plan_id !== id && p.id !== id));
 
-    if (isAuthenticated && typeof id === 'string' && id.length > 20) {
+    if (isAuthenticated) {
       try {
         await plansAPI.delete(id);
       } catch (e) {
-        console.error("Failed to delete", e);
+        console.error("Failed to delete from backend", e);
+        // If it failed because it was a local-only ID, that's fine.
+        // If it failed for other reasons, the UI is already updated (optimistic), 
+        // but strict consistency would require a rollback or error message.
+        // For now, consistent with previous behavior, we just log it.
+
+        // Also try deleting by the other ID format if it exists, just in case
+        try {
+          // Some logic might use timestamp IDs, so we just ensure cleanup
+          const key = `plan:${id}`;
+          if (window.storage && window.storage.remove) {
+            await window.storage.remove(key);
+          } else {
+            localStorage.removeItem(key);
+          }
+        } catch (localErr) { /* ignore */ }
       }
     } else {
       // Local delete
@@ -481,6 +493,9 @@ const App = () => {
   };
 
   const completeSavePlan = async (enableNotifications = false) => {
+    // Get the latest reminders from the current plan
+    const planReminders = currentPlan.reminders || reminders;
+
     const planToSave = {
       plan_id: `plan:${Date.now()}`,
       plan_type: currentPlan.type,
@@ -492,7 +507,7 @@ const App = () => {
       category: currentPlan.category,
       plan_content: currentPlan.plan,
       preferences: currentPlan.preferences,
-      reminders: currentPlan.reminders || reminders,
+      reminders: planReminders,
       notifications_enabled: enableNotifications,
       timestamp: new Date().toISOString()
     };
@@ -501,8 +516,25 @@ const App = () => {
 
       await savePlanToBackend(planToSave);
 
+      // CRITICAL FIX: Update global reminders state and persist to storage
+      // This ensures the checkAndShowReminders loop sees the new reminders immediately
+      setReminders(planReminders);
+
+      try {
+        if (window.storage && window.storage.set) {
+          await window.storage.set('user_reminders', JSON.stringify(planReminders));
+        } else {
+          localStorage.setItem('user_reminders', JSON.stringify(planReminders));
+        }
+      } catch (storageErr) {
+        console.error("Failed to save reminders locally", storageErr);
+      }
+
       if (enableNotifications) {
-        await requestNotificationPermission();
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          new Notification('FitLife Pro', { body: 'Notifications enabled for your plan!', icon: '/fitness-icon.png' });
+        }
       }
 
       setShowToast(true);
@@ -786,6 +818,9 @@ const App = () => {
             </button>
             <button onClick={() => { navigateTo('analytics'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
               <BarChart3 className="w-5 h-5 text-gray-300" /><span>Analytics</span>
+            </button>
+            <button onClick={() => { setCurrentView('home'); setShowTimer(true); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
+              <Clock className="w-5 h-5 text-gray-300" /><span>Workout Timer</span>
             </button>
 
             {isAuthenticated ? (
@@ -1683,10 +1718,42 @@ const App = () => {
                     Your Reminders
                   </h3>
                   <button
-                    onClick={() => setEditingReminders(!editingReminders)}
+                    onClick={async () => {
+                      if (editingReminders) {
+                        // Save changes
+                        try {
+                          const updatedPlan = { ...currentPlan, reminders: currentPlan.reminders };
+
+                          // 1. Update global state for notifications
+                          setReminders(updatedPlan.reminders);
+
+                          // 2. Persist to local storage for notifications
+                          if (window.storage && window.storage.set) {
+                            await window.storage.set('user_reminders', JSON.stringify(updatedPlan.reminders));
+                          } else {
+                            localStorage.setItem('user_reminders', JSON.stringify(updatedPlan.reminders));
+                          }
+
+                          // 3. Persist to Backend if authenticated
+                          if (isAuthenticated && currentPlan.plan_id) {
+                            await plansAPI.update(currentPlan.plan_id, {
+                              ...currentPlan,
+                              reminders: currentPlan.reminders,
+                              notifications_enabled: true,
+                            });
+                          }
+
+                          setShowToast(true);
+                          setTimeout(() => setShowToast(false), 2000);
+                        } catch (err) {
+                          console.error("Failed to save reminders", err);
+                        }
+                      }
+                      setEditingReminders(!editingReminders);
+                    }}
                     className={`px-4 py-2 rounded-xl font-semibold transition-all ${editingReminders ? 'bg-green-500 text-white' : 'bg-blue-500 text-white hover:bg-blue-600'}`}
                   >
-                    {editingReminders ? '✓ Done' : 'Edit'}
+                    {editingReminders ? '✓ Save & Done' : 'Edit'}
                   </button>
                 </div>
                 <div className="space-y-3">
@@ -1929,6 +1996,7 @@ const App = () => {
                           : ['Eat whole, unprocessed foods', 'Control your portions', 'Drink plenty of water']);
 
                         const loadedPlan = {
+                          plan_id: plan.plan_id || plan._id, // CRITICAL: Include the plan_id for delete/update operations
                           type: plan.plan_type,
                           bmi: plan.user_bmi,
                           category: plan.category || 'Normal',
@@ -1968,85 +2036,11 @@ const App = () => {
     );
   }
 
+  // Redirect history to analytics (consolidated view)
   if (currentView === 'history') {
-    return (
-      <div className={`min-h-screen pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6 transition-colors duration-300 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-        <Navbar />
-        <div className="max-w-4xl mx-auto">
-          <button onClick={() => navigateTo('home')} className={`mb-6 flex items-center gap-2 font-semibold transition-all ${darkMode ? 'text-white hover:text-gray-300' : 'text-gray-600 hover:text-gray-900'}`}>
-            <ArrowLeft className="w-5 h-5" />
-            Back to Dashboard
-          </button>
-
-          <div className={`${darkMode ? 'bg-white/10 border-white/10' : 'bg-white'} backdrop-blur-xl rounded-3xl p-5 sm:p-10 shadow-2xl`}>
-            <div className="flex items-center gap-4 mb-6 sm:mb-8">
-              <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl">
-                <TrendingUp className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h2 className={`text-3xl sm:text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Workout History</h2>
-                <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Your complete training log</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {workoutSessions.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No workouts logged yet. Start training!</p>
-                </div>
-              ) : (
-                workoutSessions.slice().reverse().map((session, index) => (
-                  <div key={index} className={`${darkMode ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-100'} border rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:scale-[1.01]`}>
-                    <div className="flex items-center gap-4">
-                      <div className="bg-gradient-to-br from-purple-500 to-pink-500 w-12 h-12 rounded-xl flex items-center justify-center shrink-0">
-                        <Dumbbell className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{session.exerciseName}</h3>
-                          <a
-                            href={`https://www.youtube.com/results?search_query=how+to+do+${encodeURIComponent(session.exerciseName)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-red-500 hover:text-red-600 bg-white/5 p-1 rounded-full hover:bg-white/10 transition-colors"
-                            title="Watch Tutorial"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Youtube className="w-4 h-4" />
-                          </a>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm mt-1">
-                          <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-1`}>
-                            <Calendar className="w-4 h-4" />
-                            {new Date(session.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                          <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-1`}>
-                            <Clock className="w-4 h-4" />
-                            {new Date(session.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 sm:gap-8 ml-16 sm:ml-0">
-                      <div className="text-center">
-                        <p className={`text-xs uppercase font-bold tracking-wider ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Duration</p>
-                        <p className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{Math.floor(session.totalTime / 60)}m {session.totalTime % 60}s</p>
-                      </div>
-                      <div className="text-center">
-                        <p className={`text-xs uppercase font-bold tracking-wider ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Sets</p>
-                        <p className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{session.setsCompleted}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <Analytics workoutSessions={workoutSessions} onBack={() => navigateTo('home')} />;
   }
+
 
   if (currentView === 'feedback') {
     return (

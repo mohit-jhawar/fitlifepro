@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { BarChart3, TrendingUp, Flame, Calendar, Clock, Target, ArrowLeft } from 'lucide-react';
+import { BarChart3, TrendingUp, Clock, Calendar, Flame, Award, Dumbbell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Analytics = ({ workoutSessions, onBack }) => {
@@ -25,15 +25,12 @@ const Analytics = ({ workoutSessions, onBack }) => {
                 const daysDiff = Math.floor((lastDate - sessionDate) / (1000 * 60 * 60 * 24));
 
                 if (daysDiff === 1) {
-                    // Consecutive day
                     consecutiveDays++;
                     restDaysThisWeek = 0;
                 } else if (daysDiff === 2 && restDaysThisWeek === 0) {
-                    // One rest day (allowed once per week)
                     consecutiveDays++;
                     restDaysThisWeek++;
                 } else {
-                    // Streak broken
                     if (consecutiveDays > longestStreak) {
                         longestStreak = consecutiveDays;
                     }
@@ -41,7 +38,6 @@ const Analytics = ({ workoutSessions, onBack }) => {
                     restDaysThisWeek = 0;
                 }
             } else {
-                // First session
                 consecutiveDays = 1;
             }
 
@@ -69,15 +65,14 @@ const Analytics = ({ workoutSessions, onBack }) => {
             const dateStr = date.toISOString().split('T')[0];
             const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
 
-            // Find sessions for this day
             const daySessions = workoutSessions.filter(session => {
                 const sessionDate = new Date(session.date);
                 return sessionDate.toISOString().split('T')[0] === dateStr;
             });
 
-            // Sum up duration for the day
+            // totalTime is in seconds, convert to minutes
             const totalMinutes = daySessions.reduce((sum, session) => {
-                return sum + (session.duration || 0);
+                return sum + ((session.totalTime || 0) / 60);
             }, 0);
 
             data.push({
@@ -108,7 +103,7 @@ const Analytics = ({ workoutSessions, onBack }) => {
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-        const totalMinutes = workoutSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+        const totalMinutes = workoutSessions.reduce((sum, s) => sum + ((s.totalTime || 0) / 60), 0);
         const thisWeekSessions = workoutSessions.filter(s => new Date(s.date) >= weekAgo);
         const thisMonthSessions = workoutSessions.filter(s => new Date(s.date) >= monthAgo);
 
@@ -123,19 +118,43 @@ const Analytics = ({ workoutSessions, onBack }) => {
 
     const streak = useMemo(() => calculateStreak(workoutSessions), [workoutSessions]);
 
-    // Unauthenticated state
+    // Generate heatmap data for last 4 weeks (moved before conditional return)
+    const heatmapData = useMemo(() => {
+        const weeks = 4;
+        const days = weeks * 7;
+        const heatmap = [];
+        const today = new Date();
+
+        for (let i = days - 1; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dateStr = date.toDateString();
+
+            const dayWorkouts = workoutSessions.filter(s => new Date(s.date).toDateString() === dateStr);
+
+            // Calculate intensity based on total workout time (in minutes)
+            let intensity = 0;
+            if (dayWorkouts.length > 0) {
+                const totalMinutes = dayWorkouts.reduce((sum, w) => sum + ((w.totalTime || 0) / 60), 0);
+
+                // Intensity levels based on total workout time
+                if (totalMinutes >= 90) intensity = 4;        // 90+ min = max intensity
+                else if (totalMinutes >= 60) intensity = 3;   // 60-89 min = high
+                else if (totalMinutes >= 30) intensity = 2;   // 30-59 min = medium  
+                else if (totalMinutes > 0) intensity = 1;     // 1-29 min = low
+            }
+
+            heatmap.push({ date, dateStr, intensity, count: dayWorkouts.length });
+        }
+
+        return heatmap;
+    }, [workoutSessions]);
+
+    // Unauthenticated state (after all hooks)
     if (!isAuthenticated) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 pt-24 p-6">
                 <div className="max-w-4xl mx-auto">
-                    <button
-                        onClick={onBack}
-                        className="mb-6 flex items-center gap-2 text-white hover:text-gray-200 font-semibold transition-all"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                        Back
-                    </button>
-
                     <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-12 text-center shadow-2xl">
                         <div className="text-6xl mb-6">📊</div>
                         <h2 className="text-3xl font-bold text-gray-900 mb-4">Track Your Progress</h2>
@@ -153,144 +172,227 @@ const Analytics = ({ workoutSessions, onBack }) => {
         );
     }
 
-    // Max height for chart (3 hours = 180 minutes)
-    const maxChartHeight = 180;
-    const maxBarHeight = 200; // pixels
+    const maxChartValue = Math.max(...chartData.map(d => d.minutes), 1);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 pt-24 p-4 sm:p-6">
-            <div className="max-w-6xl mx-auto">
-                <button
-                    onClick={onBack}
-                    className="mb-6 flex items-center gap-2 text-white hover:text-gray-200 font-semibold transition-all"
-                >
-                    <ArrowLeft className="w-5 h-5" />
-                    Back
-                </button>
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 pt-24 pb-6 sm:pb-8 px-3 sm:px-6">
+            <div className="max-w-7xl mx-auto">
 
-                <div className="mb-8">
-                    <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-                        <BarChart3 className="w-10 h-10" />
-                        Analytics
-                    </h1>
-                    <p className="text-gray-300">Track your progress and stay motivated</p>
+                {/* Header */}
+                <div className="mb-6 sm:mb-8">
+                    <div className="flex items-center gap-3 sm:gap-4 mb-2 sm:mb-3">
+                        <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl">
+                            <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl sm:text-4xl font-bold text-white">Analytics Dashboard</h1>
+                            <p className="text-sm sm:text-base text-gray-300 mt-0.5 sm:mt-1">Track your fitness journey and celebrate your progress</p>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Streak and Stats Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {/* Stats Grid */}
+                <div className="grid grid-cols-4 gap-2 sm:gap-4 mb-6 sm:mb-8">
                     {/* Current Streak */}
-                    <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl p-6 shadow-xl">
-                        <div className="flex items-center gap-3 mb-2">
-                            <Flame className="w-8 h-8 text-white" />
-                            <h3 className="text-white font-bold text-lg">Current Streak</h3>
+                    <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-xl sm:rounded-2xl p-2 sm:p-6 shadow-xl hover:scale-105 transition-transform cursor-pointer flex flex-col sm:block items-center justify-center sm:justify-start">
+                        <div className="flex items-start justify-between w-full mb-1 sm:mb-4">
+                            <Flame className="w-5 h-5 sm:w-8 sm:h-8 text-white mb-1 sm:mb-0" />
+                            <div className="hidden sm:block bg-white/20 px-3 py-1 rounded-full">
+                                <span className="text-white text-xs font-bold uppercase tracking-wider">Streak</span>
+                            </div>
                         </div>
-                        <p className="text-5xl font-bold text-white mb-1">{streak.current}</p>
-                        <p className="text-orange-100 text-sm">days in a row</p>
+                        <p className="text-2xl sm:text-5xl font-bold text-white mb-0.5 sm:mb-1 leading-none">{streak.current}</p>
+                        <p className="text-orange-100 text-[10px] sm:text-sm font-medium text-center sm:text-left uppercase sm:normal-case tracking-wide sm:tracking-normal">Streak</p>
                     </div>
 
-                    {/* Longest Streak */}
-                    <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-6 shadow-xl">
-                        <div className="flex items-center gap-3 mb-2">
-                            <Target className="w-8 h-8 text-white" />
-                            <h3 className="text-white font-bold text-lg">Best Streak</h3>
+                    {/* Best Streak */}
+                    <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl sm:rounded-2xl p-2 sm:p-6 shadow-xl hover:scale-105 transition-transform cursor-pointer flex flex-col sm:block items-center justify-center sm:justify-start">
+                        <div className="flex items-start justify-between w-full mb-1 sm:mb-4">
+                            <Award className="w-5 h-5 sm:w-8 sm:h-8 text-white mb-1 sm:mb-0" />
+                            <div className="hidden sm:block bg-white/20 px-3 py-1 rounded-full">
+                                <span className="text-white text-xs font-bold uppercase tracking-wider">Best</span>
+                            </div>
                         </div>
-                        <p className="text-5xl font-bold text-white mb-1">{streak.longest}</p>
-                        <p className="text-purple-100 text-sm">personal record</p>
+                        <p className="text-2xl sm:text-5xl font-bold text-white mb-0.5 sm:mb-1 leading-none">{streak.longest}</p>
+                        <p className="text-purple-100 text-[10px] sm:text-sm font-medium text-center sm:text-left uppercase sm:normal-case tracking-wide sm:tracking-normal">Best</p>
                     </div>
 
                     {/* This Week */}
-                    <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 shadow-xl">
-                        <div className="flex items-center gap-3 mb-2">
-                            <Calendar className="w-8 h-8 text-white" />
-                            <h3 className="text-white font-bold text-lg">This Week</h3>
+                    <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl sm:rounded-2xl p-2 sm:p-6 shadow-xl hover:scale-105 transition-transform cursor-pointer flex flex-col sm:block items-center justify-center sm:justify-start">
+                        <div className="flex items-start justify-between w-full mb-1 sm:mb-4">
+                            <Calendar className="w-5 h-5 sm:w-8 sm:h-8 text-white mb-1 sm:mb-0" />
+                            <div className="hidden sm:block bg-white/20 px-3 py-1 rounded-full">
+                                <span className="text-white text-xs font-bold uppercase tracking-wider">Week</span>
+                            </div>
                         </div>
-                        <p className="text-5xl font-bold text-white mb-1">{stats.thisWeek}</p>
-                        <p className="text-green-100 text-sm">workouts completed</p>
+                        <p className="text-2xl sm:text-5xl font-bold text-white mb-0.5 sm:mb-1 leading-none">{stats.thisWeek}</p>
+                        <p className="text-green-100 text-[10px] sm:text-sm font-medium text-center sm:text-left uppercase sm:normal-case tracking-wide sm:tracking-normal">Sessions</p>
                     </div>
 
-                    {/* Average Duration */}
-                    <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl p-6 shadow-xl">
-                        <div className="flex items-center gap-3 mb-2">
-                            <Clock className="w-8 h-8 text-white" />
-                            <h3 className="text-white font-bold text-lg">Avg Duration</h3>
+                    {/* Avg Duration */}
+                    <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl sm:rounded-2xl p-2 sm:p-6 shadow-xl hover:scale-105 transition-transform cursor-pointer flex flex-col sm:block items-center justify-center sm:justify-start">
+                        <div className="flex items-start justify-between w-full mb-1 sm:mb-4">
+                            <Clock className="w-5 h-5 sm:w-8 sm:h-8 text-white mb-1 sm:mb-0" />
+                            <div className="hidden sm:block bg-white/20 px-3 py-1 rounded-full">
+                                <span className="text-white text-xs font-bold uppercase tracking-wider">Avg</span>
+                            </div>
                         </div>
-                        <p className="text-5xl font-bold text-white mb-1">{Math.round(stats.avgDuration)}</p>
-                        <p className="text-blue-100 text-sm">minutes per session</p>
+                        <p className="text-2xl sm:text-5xl font-bold text-white mb-0.5 sm:mb-1 leading-none">{Math.round(stats.avgDuration)}</p>
+                        <p className="text-blue-100 text-[10px] sm:text-sm font-medium text-center sm:text-left uppercase sm:normal-case tracking-wide sm:tracking-normal">Avg Min</p>
                     </div>
                 </div>
 
-                {/* Bar Chart */}
-                <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl mb-8">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                        <TrendingUp className="w-6 h-6 text-purple-600" />
-                        Last 7 Days
-                    </h2>
-
-                    {chartData.every(d => d.minutes === 0) ? (
-                        <div className="text-center py-12">
-                            <p className="text-gray-500 text-lg">No workout data for the last 7 days</p>
-                            <p className="text-gray-400 text-sm mt-2">Complete a workout to see your progress here!</p>
-                        </div>
-                    ) : (
-                        <div className="relative">
-                            {/* Chart */}
-                            <div className="flex items-end justify-between gap-3 sm:gap-6 h-64 mb-4">
+                {/* Charts Row */}
+                <div className="grid lg:grid-cols-2 gap-6 mb-6">
+                    {/* Weekly Activity Chart */}
+                    <div className="bg-white/5 backdrop-blur-xl rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-white/10 shadow-2xl h-full flex flex-col min-h-[300px] sm:min-h-0">
+                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
+                            Weekly Activity
+                        </h3>
+                        {chartData.every(d => d.minutes === 0) ? (
+                            <div className="text-center py-8 flex-1 flex flex-col justify-center">
+                                <p className="text-gray-400 text-lg mb-2">No activity this week</p>
+                                <p className="text-gray-500 text-sm mt-2">Complete a workout to see your progress!</p>
+                            </div>
+                        ) : (
+                            <div className="flex items-end justify-between gap-1.5 sm:gap-2 w-full mt-auto flex-1">
                                 {chartData.map((day, index) => {
-                                    const barHeight = (day.minutes / maxChartHeight) * maxBarHeight;
+                                    const height = (day.minutes / maxChartValue) * 100;
                                     return (
-                                        <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                                            {/* Bar */}
-                                            <div className="relative w-full flex items-end justify-center" style={{ height: maxBarHeight }}>
-                                                {day.minutes > 0 && (
-                                                    <div className="relative group">
-                                                        <div
-                                                            className="w-12 sm:w-16 bg-gradient-to-t from-purple-600 to-pink-500 rounded-t-xl transition-all hover:opacity-80 cursor-pointer"
-                                                            style={{ height: `${barHeight}px` }}
-                                                        />
-                                                        {/* Tooltip */}
-                                                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                                                            <p className="font-bold">{day.minutes} min</p>
-                                                            <p>({day.hours} hrs)</p>
-                                                            <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                        <div key={index} className="flex-1 flex flex-col items-center gap-1.5 sm:gap-2 group h-full justify-end">
+                                            <div className="w-full flex items-end justify-center h-full">
+                                                <div className="relative w-full h-full flex items-end justify-center">
+                                                    <div
+                                                        className="w-full max-w-[20px] sm:max-w-[40px] bg-gradient-to-t from-purple-600 via-pink-500 to-orange-400 rounded-t-lg transition-all group-hover:opacity-80 cursor-pointer"
+                                                        style={{ height: `${height}%` }}
+                                                    />
+                                                    {day.minutes > 0 && (
+                                                        <div className="absolute -top-7 sm:-top-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                                            {Math.round(day.minutes)}min
                                                         </div>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
-                                            {/* Day label */}
-                                            <p className="text-xs sm:text-sm font-semibold text-gray-700">{day.day}</p>
+                                            <span className="text-[10px] sm:text-xs font-semibold text-gray-300">{day.day}</span>
                                         </div>
                                     );
                                 })}
                             </div>
+                        )}
+                    </div>
 
-                            {/* Y-axis labels */}
-                            <div className="absolute left-0 top-0 -ml-12 h-64 flex flex-col justify-between text-xs text-gray-500">
-                                <span>3h</span>
-                                <span>2h</span>
-                                <span>1h</span>
-                                <span>0</span>
-                            </div>
+                    {/* Intensity Heatmap */}
+                    <div className="bg-white/5 backdrop-blur-xl rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-white/10 shadow-2xl h-full flex flex-col min-h-[300px] sm:min-h-0">
+                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center gap-2">
+                            <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400" />
+                            Intensity Heatmap (4 Weeks)
+                        </h3>
+                        <div className="grid grid-cols-7 gap-1.5 sm:gap-2 w-full mt-auto content-end">
+                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                                <div key={i} className="text-center text-xs font-bold text-gray-400 mb-1">
+                                    {day}
+                                </div>
+                            ))}
+                            {heatmapData.map((cell, idx) => {
+                                const colors = [
+                                    'bg-gray-700/50',
+                                    'bg-green-500/30',
+                                    'bg-green-500/60',
+                                    'bg-green-500',
+                                    'bg-orange-500'
+                                ];
+                                return (
+                                    <div
+                                        key={idx}
+                                        className={`aspect-square rounded sm:rounded-lg transition-all cursor-pointer hover:scale-110 hover:shadow-lg group relative ${cell.intensity === 0 ? 'bg-slate-700/50' : colors[cell.intensity]
+                                            } border border-white/5`}
+                                        title={`${cell.date.toLocaleDateString()}: ${cell.count} workout${cell.count !== 1 ? 's' : ''}`}
+                                    >
+                                        <div className="absolute hidden group-hover:block bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs rounded whitespace-nowrap z-10 bg-gray-900 text-white border border-white/20">
+                                            {cell.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}<br />{cell.count} workout{cell.count !== 1 ? 's' : ''}
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
-                    )}
+                        <div className="flex items-center justify-between mt-3 sm:mt-4 text-[10px] sm:text-xs text-gray-400">
+                            <span>Less</span>
+                            {[0, 1, 2, 3, 4].map(i => (
+                                <div key={i} className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded ${[
+                                    'bg-slate-700/50',
+                                    'bg-green-500/30',
+                                    'bg-green-500/60',
+                                    'bg-yellow-500/70',
+                                    'bg-orange-500'
+                                ][i]}`}></div>
+                            ))}
+                            <span>More</span>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Summary Stats */}
-                <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Summary</h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
-                        <div>
-                            <p className="text-gray-600 text-sm mb-1">Total Workouts</p>
-                            <p className="text-3xl font-bold text-purple-600">{stats.totalWorkouts}</p>
+                <div className="bg-white/5 backdrop-blur-xl rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-white/10 shadow-2xl mb-6 sm:mb-8">
+                    <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Overall Summary</h3>
+                    <div className="grid grid-cols-3 gap-3 sm:gap-6">
+                        <div className="text-center">
+                            <p className="text-gray-400 text-xs sm:text-sm mb-1 sm:mb-2">Total Workouts</p>
+                            <p className="text-3xl sm:text-4xl font-bold text-purple-400">{stats.totalWorkouts}</p>
                         </div>
-                        <div>
-                            <p className="text-gray-600 text-sm mb-1">Total Time</p>
-                            <p className="text-3xl font-bold text-purple-600">{Math.round(stats.totalMinutes / 60)}h</p>
+                        <div className="text-center">
+                            <p className="text-gray-400 text-xs sm:text-sm mb-1 sm:mb-2">Total Time</p>
+                            <p className="text-3xl sm:text-4xl font-bold text-cyan-400">{Math.floor(stats.totalMinutes / 60)}h</p>
                         </div>
-                        <div>
-                            <p className="text-gray-600 text-sm mb-1">This Month</p>
-                            <p className="text-3xl font-bold text-purple-600">{stats.thisMonth}</p>
+                        <div className="text-center">
+                            <p className="text-gray-400 text-xs sm:text-sm mb-1 sm:mb-2">This Month</p>
+                            <p className="text-3xl sm:text-4xl font-bold text-green-400">{stats.thisMonth}</p>
                         </div>
                     </div>
+                </div>
+
+                {/* Workout History */}
+                <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/10">
+                    <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                        <Dumbbell className="w-5 h-5 text-purple-400" />
+                        Recent Workouts
+                    </h3>
+                    {workoutSessions.length === 0 ? (
+                        <div className="text-center py-12">
+                            <p className="text-gray-400 text-lg">No workouts logged yet</p>
+                            <p className="text-gray-500 text-sm mt-2">Start training to build your history!</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2 sm:space-y-3 max-h-80 sm:max-h-96 overflow-y-auto pr-1 sm:pr-2">
+                            {workoutSessions.slice().reverse().slice(0, 10).map((session, index) => (
+                                <div key={index} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:bg-white/10 transition-all border border-white/10">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-1.5 sm:gap-2">
+                                            <div className="bg-gradient-to-br from-purple-500 to-pink-500 w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center">
+                                                <Dumbbell className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-semibold text-white text-sm sm:text-base">{session.exerciseName}</h4>
+                                                <p className="text-xs text-gray-400">
+                                                    {new Date(session.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 sm:gap-4">
+                                            <div className="text-right">
+                                                <p className="text-xs text-gray-400">Duration</p>
+                                                <p className="font-semibold text-white text-sm sm:text-base">{Math.floor(session.totalTime / 60)}m {session.totalTime % 60}s</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xs text-gray-400">Sets</p>
+                                                <p className="font-semibold text-white text-sm sm:text-base">{session.setsCompleted}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

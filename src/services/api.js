@@ -134,6 +134,11 @@ export const plansAPI = {
     delete: async (id) => {
         const response = await api.delete(`/plans/${id}`);
         return response.data;
+    },
+
+    update: async (id, planData) => {
+        const response = await api.put(`/plans/${id}`, planData);
+        return response.data;
     }
 };
 

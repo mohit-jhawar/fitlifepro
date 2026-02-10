@@ -57,19 +57,76 @@ exports.deletePlan = async (req, res) => {
         const { id } = req.params;
         const userId = req.user.id;
 
+        console.log('=== DELETE PLAN REQUEST ===');
+        console.log('Plan ID:', id);
+        console.log('User ID:', userId);
+
         // Check owner
+        const plan = await PlanModel.findById(id);
+        console.log('Found plan:', plan ? 'YES' : 'NO');
+
+        if (!plan) {
+            console.log('Plan not found in database');
+            return res.status(404).json({ success: false, message: 'Plan not found' });
+        }
+
+        console.log('Plan user_id:', plan.user_id.toString());
+        console.log('Request user_id:', userId);
+
+        if (plan.user_id.toString() !== userId.toString()) {
+            console.log('Authorization failed - user does not own this plan');
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        const result = await PlanModel.findByIdAndDelete(id);
+        console.log('Delete result:', result ? 'SUCCESS' : 'FAILED');
+        console.log('=== DELETE COMPLETE ===');
+
+        res.json({ success: true, message: 'Plan deleted' });
+    } catch (err) {
+        console.error('Delete Plan Error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+exports.updatePlan = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+        const { plan_type, plan_name, ...planData } = req.body;
+
         const plan = await PlanModel.findById(id);
         if (!plan) {
             return res.status(404).json({ success: false, message: 'Plan not found' });
         }
-        if (plan.user_id.toString() !== userId) {
+
+        // Fix: Ensure both IDs are strings for comparison
+        if (plan.user_id.toString() !== userId.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
 
-        await PlanModel.findByIdAndDelete(id);
-        res.json({ success: true, message: 'Plan deleted' });
+        const updatedPlan = await PlanModel.findByIdAndUpdate(
+            id,
+            {
+                plan_type: plan_type || plan.plan_type,
+                plan_name: plan_name || plan.plan_name,
+                plan_data: { ...plan.plan_data, ...planData }
+            },
+            { new: true }
+        );
+
+        const formattedPlan = {
+            ...updatedPlan.plan_data,
+            plan_id: updatedPlan._id,
+            plan_type: updatedPlan.plan_type,
+            plan_name: updatedPlan.plan_name,
+            timestamp: updatedPlan.created_at,
+            id: new Date(updatedPlan.created_at).getTime()
+        };
+
+        res.json({ success: true, plan: formattedPlan });
     } catch (err) {
-        console.error('Delete Plan Error:', err);
+        console.error('Update Plan Error:', err);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };
