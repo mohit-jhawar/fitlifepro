@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Pause, RotateCcw, SkipForward, Clock, Timer, CheckCircle, X, Zap, TrendingUp, Youtube } from 'lucide-react';
 
-const WorkoutTimer = ({ onClose, onSaveSession }) => {
+const WorkoutTimer = ({ onClose, onSaveSession, onSaveProgress }) => {
     const [isRunning, setIsRunning] = useState(false);
     const [workoutTime, setWorkoutTime] = useState(0);
     const [exerciseTime, setExerciseTime] = useState(0);
@@ -98,9 +98,11 @@ const WorkoutTimer = ({ onClose, onSaveSession }) => {
         setIsRunning(!isRunning);
     };
 
-    const handleReset = () => {
+    const handleReset = async () => {
         // Save session before resetting if there was any workout activity
         if (workoutTime > 0 && onSaveSession) {
+
+            // Show saving state (optional, or just await)
             const session = {
                 date: new Date().toISOString(),
                 totalTime: workoutTime,
@@ -108,7 +110,13 @@ const WorkoutTimer = ({ onClose, onSaveSession }) => {
                 exercises: completedSets,
                 exerciseName: exerciseName || 'Workout'
             };
-            onSaveSession(session);
+
+            const result = await onSaveSession(session);
+
+            // If save failed because of auth, don't reset timer
+            if (result && !result.success) {
+                return;
+            }
         }
 
         setIsRunning(false);
@@ -123,11 +131,23 @@ const WorkoutTimer = ({ onClose, onSaveSession }) => {
     const handleCompleteSet = () => {
         const setData = {
             set: currentSet,
-            exercise: exerciseName || 'Exercise',
+            name: exerciseName || 'Exercise',
             duration: exerciseTime
         };
 
-        setCompletedSets([...completedSets, setData]);
+        const newCompletedSets = [...completedSets, setData];
+        setCompletedSets(newCompletedSets);
+
+        // Sync progress immediately
+        if (onSaveProgress) {
+            onSaveProgress({
+                date: new Date().toISOString(),
+                totalTime: workoutTime,
+                exercises: newCompletedSets,
+                exerciseName: exerciseName || 'Workout'
+            });
+        }
+
         setCurrentSet(currentSet + 1);
         setExerciseTime(0);
 
@@ -145,7 +165,7 @@ const WorkoutTimer = ({ onClose, onSaveSession }) => {
         setRestTime(0);
     };
 
-    const handleClose = () => {
+    const handleClose = async () => {
         // Save session if there was any workout activity
         if (workoutTime > 0 && onSaveSession) {
             const session = {
@@ -155,7 +175,8 @@ const WorkoutTimer = ({ onClose, onSaveSession }) => {
                 exercises: completedSets,
                 exerciseName: exerciseName || 'Workout'
             };
-            onSaveSession(session);
+            const result = await onSaveSession(session);
+            if (result && !result.success) return; // Don't close if save failed (e.g. auth needed)
         }
         onClose();
     };
@@ -267,7 +288,7 @@ const WorkoutTimer = ({ onClose, onSaveSession }) => {
                     </div>
                     <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-400/30 rounded-2xl p-3 sm:p-4 text-center hover:scale-105 transition-transform">
                         <CheckCircle className="w-6 h-6 text-purple-300 mx-auto mb-2" />
-                        <p className="text-xs text-purple-200 mb-1 uppercase tracking-wide">Current Set</p>
+                        <p className="text-xs text-purple-200 mb-1 uppercase tracking-wide">{exerciseName || 'Exercise'} Set</p>
                         <p className="text-2xl font-bold text-white">{currentSet}</p>
                     </div>
                     <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-400/30 rounded-2xl p-3 sm:p-4 text-center">
@@ -361,7 +382,7 @@ const WorkoutTimer = ({ onClose, onSaveSession }) => {
                                             <span className="bg-green-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold">
                                                 {set.set}
                                             </span>
-                                            {set.exercise}
+                                            {set.name}
                                         </p>
                                         <p className="text-green-200 text-sm ml-8">Duration: {formatTime(set.duration)}</p>
                                     </div>

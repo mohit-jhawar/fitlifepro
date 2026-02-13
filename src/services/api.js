@@ -151,6 +151,10 @@ export const workoutsAPI = {
     create: async (session) => {
         const response = await api.post('/workouts', session);
         return response.data;
+    },
+    update: async (id, session) => {
+        const response = await api.put(`/workouts/${id}`, session);
+        return response.data;
     }
 };
 
@@ -158,6 +162,14 @@ export const workoutsAPI = {
 export const feedbackAPI = {
     submit: async (data) => {
         const response = await api.post('/feedback', data);
+        return response.data;
+    }
+};
+
+// AI Coach API calls
+export const aiAPI = {
+    chat: async (message, history) => {
+        const response = await api.post('/ai/chat', { message, history });
         return response.data;
     }
 };

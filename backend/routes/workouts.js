@@ -8,6 +8,7 @@ const workoutController = require('../controllers/workoutController');
 const { auth } = require('../middleware/auth');
 
 router.post('/', auth, workoutController.createLog);
+router.put('/:id', auth, workoutController.updateLog);
 router.get('/', auth, workoutController.getLogs);
 
 module.exports = router;

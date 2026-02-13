@@ -515,6 +515,77 @@ export const workoutTemplates = [
                 ]
             }
         ]
+    },
+    {
+        id: 'template_kettlebell_flow',
+        name: 'Kettlebell Flow',
+        difficulty: 'Intermediate',
+        duration: '40 min',
+        daysPerWeek: 3,
+        equipment: 'Kettlebell',
+        description: 'Functional full-body strength and conditioning using kettlebells.',
+        goals: ['Functional Strength', 'Conditioning', 'Fat Loss'],
+        image: '🔔',
+        weeks: 4,
+        workouts: [
+            {
+                day: 'Day 1',
+                focus: 'Full Body Flow',
+                exercises: [
+                    { name: 'Kettlebell Swings', sets: 4, reps: '15-20', rest: '60s' },
+                    { name: 'Goblet Squats', sets: 4, reps: '12-15', rest: '60s' },
+                    { name: 'Single-Arm Press', sets: 3, reps: '10 each side', rest: '45s' },
+                    { name: 'Kettlebell Rows', sets: 3, reps: '12 each side', rest: '45s' },
+                    { name: 'Turkish Get-Ups', sets: 3, reps: '5 each side', rest: '90s' }
+                ]
+            },
+            {
+                day: 'Day 2',
+                focus: 'Conditioning',
+                exercises: [
+                    { name: 'Kettlebell Snatch', sets: 4, reps: '10 each side', rest: '60s' },
+                    { name: 'Lunges with Pass-Through', sets: 3, reps: '20 total', rest: '45s' },
+                    { name: 'Kettlebell Halo', sets: 3, reps: '10 each direction', rest: '30s' },
+                    { name: 'Farmers Walk', sets: 3, reps: '45s walk', rest: '60s' }
+                ]
+            },
+            {
+                day: 'Day 3',
+                focus: 'Strength & Stability',
+                exercises: [
+                    { name: 'Single-Leg Deadlift', sets: 3, reps: '10 each side', rest: '60s' },
+                    { name: 'Kettlebell Clean & Press', sets: 4, reps: '8-10 each side', rest: '75s' },
+                    { name: 'Windmills', sets: 3, reps: '8 each side', rest: '60s' },
+                    { name: 'Russian Twists', sets: 3, reps: '30 total', rest: '30s' }
+                ]
+            }
+        ]
+    },
+    {
+        id: 'template_mobility_recovery',
+        name: 'Mobility & Recovery',
+        difficulty: 'All Levels',
+        duration: '20 min',
+        daysPerWeek: 7,
+        equipment: 'Foam Roller, Mat',
+        description: 'Daily mobility routine to improve joint health and recover faster.',
+        goals: ['Recovery', 'Joint Health', 'Flexibility'],
+        image: '🧘‍♂️',
+        weeks: 4,
+        workouts: [
+            {
+                day: 'Daily Routine',
+                focus: 'Full Body Mobility',
+                exercises: [
+                    { name: 'Thoracic Extension (Foam Roller)', sets: 2, reps: '60s', rest: '30s' },
+                    { name: 'Cat-Cow Stretch', sets: 2, reps: '10 reps', rest: '30s' },
+                    { name: '90/90 Hip Stretch', sets: 2, reps: '60s each side', rest: '30s' },
+                    { name: 'Deep Squat Hold', sets: 2, reps: '45-60s', rest: '45s' },
+                    { name: 'Doorway Pec Stretch', sets: 2, reps: '45s each side', rest: '30s' },
+                    { name: 'Child\'s Pose', sets: 1, reps: '2 min', rest: '0s' }
+                ]
+            }
+        ]
     }
 ];
 

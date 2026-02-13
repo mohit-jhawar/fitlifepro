@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Heart, Folder, Trash2, ArrowLeft, Dumbbell, Utensils, Calendar, Quote, TrendingUp, Award, User, Home, MessageCircle, Mail, Bell, Settings, LogIn, LogOut, Clock, Zap, Youtube, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { Heart, Folder, Trash2, ArrowLeft, Dumbbell, Utensils, Calendar, Quote, TrendingUp, Award, User, Home, MessageCircle, Mail, Bell, Settings, LogIn, LogOut, Clock, Zap, Youtube, BarChart3, ChevronDown, ChevronUp, Sparkles, X } from 'lucide-react';
 import { plansAPI, workoutsAPI, feedbackAPI } from './services/api';
 
 import { getWorkoutPlan as generateWorkoutPlan, getDietPlan as generateDietPlan } from './plans';
@@ -10,6 +10,7 @@ import WorkoutTemplates from './components/WorkoutTemplates';
 import WorkoutTimer from './components/WorkoutTimer';
 import LoginDialog from './components/LoginDialog';
 import Analytics from './components/Analytics';
+import AICoach from './components/AICoach';
 
 const App = () => {
   const { user, isAuthenticated, logout, updateProfile } = useAuth();
@@ -27,12 +28,14 @@ const App = () => {
   // eslint-disable-next-line no-unused-vars
   const [pendingPlanSave, setPendingPlanSave] = useState(null);
   const [showTimer, setShowTimer] = useState(false);
+  const [showAICoach, setShowAICoach] = useState(false);
   const [workoutSessions, setWorkoutSessions] = useState([]);
   const [feedbackForm, setFeedbackForm] = useState({ name: '', email: '', message: '' });
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [feedbackError, setFeedbackError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [selectedWeek, setSelectedWeek] = useState(1);
   const darkMode = true;
   const [preferences, setPreferences] = useState({
     fitnessLevel: '',
@@ -332,26 +335,76 @@ const App = () => {
     setWorkoutSessions(sessions);
   }, [isAuthenticated]);
 
+  /* 
+   * WORKOUT SYNC LOGIC
+   * - saveWorkoutProgress: Called after every set. Syncs to DB if logged in.
+   * - saveWorkoutSession: Called on "Save & Reset". Marks as completed.
+   */
+  const [currentWorkoutId, setCurrentWorkoutId] = useState(null);
+
+  const saveWorkoutProgress = async (partialSession) => {
+    // 1. Auth Check - Silent return if not logged in (user will be prompted at end)
+    if (!isAuthenticated) return;
+
+    try {
+      if (currentWorkoutId) {
+        // Update existing log
+        await workoutsAPI.update(currentWorkoutId, {
+          ...partialSession,
+          completed: false
+        });
+      } else {
+        // Create new log
+        const res = await workoutsAPI.create({
+          ...partialSession,
+          completed: false
+        });
+        if (res.success && res.session) {
+          setCurrentWorkoutId(res.session.id);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to sync workout progress", e);
+      // Silent fail for progress sync - we don't want to interrupt the workout
+    }
+  };
+
   const saveWorkoutSession = async (session) => {
-    // Only save if authenticated
+    // 1. Auth Guard
     if (!isAuthenticated) {
-      // Optionally show login dialog
       setShowLoginDialog(true);
-      return;
+      // Return a special flag so the timer knows we didn't save yet
+      return { success: false, reason: 'unauthenticated' };
     }
 
     try {
-      const res = await workoutsAPI.create(session);
-      if (res.success) {
-        setWorkoutSessions(prev => [res.session, ...prev]);
-        return;
+      let result;
+      if (currentWorkoutId) {
+        // Final update to mark as completed
+        result = await workoutsAPI.update(currentWorkoutId, {
+          ...session,
+          completed: true
+        });
+      } else {
+        // Create new completed log
+        result = await workoutsAPI.create({
+          ...session,
+          completed: true
+        });
+      }
+
+      if (result.success) {
+        setWorkoutSessions(prev => [result.session, ...prev]);
+        setCurrentWorkoutId(null); // Reset for next workout
+        return { success: true };
       }
     } catch (e) {
       console.error("Failed to save session", e);
-      // Fallback to localStorage only if authenticated
-      const sessionId = `workout_session:${Date.now()}`;
-      localStorage.setItem(sessionId, JSON.stringify(session));
-      setWorkoutSessions(prev => [session, ...prev]);
+      setValidationDialog({
+        show: true,
+        message: 'Failed to save workout. Please try again.'
+      });
+      return { success: false, reason: 'error', error: e };
     }
   };
 
@@ -430,10 +483,7 @@ const App = () => {
           setValidationDialog({ show: true, message: 'Please select your workout location (Home or Gym)' });
           return;
         }
-        if (!preferences.goalType) {
-          setValidationDialog({ show: true, message: 'Please select your primary goal' });
-          return;
-        }
+
       } else if (planType === 'diet') {
         if (!preferences.goalType) {
           setValidationDialog({ show: true, message: 'Please select your primary goal' });
@@ -441,7 +491,9 @@ const App = () => {
         }
       }
 
-      const plan = planType === 'workout' ? generateWorkoutPlan(category, weight, height, preferences) : generateDietPlan(category, weight, height, preferences);
+      const plan = planType === 'workout'
+        ? generateWorkoutPlan(category, weight, height, { ...preferences, goalType: 'muscle-building' })
+        : generateDietPlan(category, weight, height, preferences);
 
       // Ensure goal and frequency/calories are correctly mapped from generated plan
       const planGoal = plan.goal || preferences.goalType || 'Fitness Goal';
@@ -467,6 +519,7 @@ const App = () => {
         preferences: { ...preferences },
         reminders: { ...reminders }
       });
+      setSelectedWeek(1);
     }
 
     navigateTo('result');
@@ -731,6 +784,9 @@ const App = () => {
             <button onClick={() => navigateTo('analytics')} className="bg-white/20 p-2.5 rounded-xl hover:bg-white/30 transition-all border border-white/30" title="Analytics">
               <BarChart3 className="w-5 h-5 text-white" />
             </button>
+            <button onClick={() => { setCurrentView('home'); setShowAICoach(true); }} className="bg-white/20 p-2.5 rounded-xl hover:bg-white/30 transition-all border border-white/30" title="AI Coach">
+              <Sparkles className="w-5 h-5 text-yellow-400" />
+            </button>
             <button onClick={() => { setCurrentView('home'); setShowTimer(true); }} className="bg-white/20 p-2.5 rounded-xl hover:bg-white/30 transition-all border border-white/30" title="Workout Timer">
               <Clock className="w-5 h-5 text-white" />
             </button>
@@ -818,6 +874,9 @@ const App = () => {
             </button>
             <button onClick={() => { navigateTo('analytics'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
               <BarChart3 className="w-5 h-5 text-gray-300" /><span>Analytics</span>
+            </button>
+            <button onClick={() => { setCurrentView('home'); setShowAICoach(true); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
+              <Sparkles className="w-5 h-5 text-yellow-400" /><span>AI Coach</span>
             </button>
             <button onClick={() => { setCurrentView('home'); setShowTimer(true); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
               <Clock className="w-5 h-5 text-gray-300" /><span>Workout Timer</span>
@@ -1029,7 +1088,38 @@ const App = () => {
       <div className={darkMode ? 'min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800' : 'min-h-screen bg-gradient-to-br from-cyan-50 via-sky-50 to-blue-50'}>
         {renderRootComponents()}
         <Navbar />
-        {showTimer && <WorkoutTimer onClose={() => setShowTimer(false)} onSaveSession={saveWorkoutSession} />}
+        {showTimer && (
+          <WorkoutTimer
+            onClose={() => { setShowTimer(false); loadWorkoutSessions(); }}
+            onSaveSession={saveWorkoutSession}
+            onSaveProgress={saveWorkoutProgress}
+          />
+        )}
+        {showAICoach && (
+          !isAuthenticated ? (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 w-full max-w-md rounded-3xl p-8 text-center border border-white/20 shadow-2xl relative animate-in fade-in zoom-in duration-300">
+                <button
+                  onClick={() => setShowAICoach(false)}
+                  className="absolute right-4 top-4 p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
+                >
+                  <X className="w-6 h-6 text-white" />
+                </button>
+                <div className="text-6xl mb-6">🤖</div>
+                <h2 className="text-2xl font-bold text-white mb-3">AI Coach Pro</h2>
+                <p className="text-gray-300 mb-8">Login to access your elite AI training partner and start your personalized onboarding.</p>
+                <button
+                  onClick={() => { setShowAICoach(false); navigateTo('auth'); }}
+                  className="w-full bg-gradient-to-r from-purple-500 to-pink-600 text-white py-4 rounded-xl font-bold hover:shadow-lg transition-all transform hover:scale-105"
+                >
+                  Login to Begin
+                </button>
+              </div>
+            </div>
+          ) : (
+            <AICoach onBack={() => setShowAICoach(false)} />
+          )
+        )}
         <div className="pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6">
           <div className="max-w-6xl mx-auto">
             <div className={`${darkMode ? 'bg-white/10 border-white/20' : 'bg-white border-gray-200'} backdrop-blur-md rounded-3xl p-4 sm:p-6 shadow-2xl mb-4 sm:mb-6 border`}>
@@ -1041,7 +1131,7 @@ const App = () => {
 
 
 
-            <div className="grid md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
               <div onClick={() => { setPlanType('workout'); navigateTo('input'); setUserMetrics({ ...userMetrics, weight: '', height: '' }); setReminders(initialReminders); }} className="group cursor-pointer transform hover:scale-105 transition-all rounded-3xl h-52 sm:h-80 shadow-2xl relative overflow-hidden">
                 <div className="absolute inset-0">
                   <img src="/assets/images/card-workout.jpg" alt="Workout" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700" />
@@ -1074,6 +1164,24 @@ const App = () => {
                   <div className="flex items-center gap-2 text-white font-semibold">
                     <span>Get Started</span>
                     <ArrowLeft className="w-5 h-5 rotate-180 group-hover:translate-x-2 transition-transform" />
+                  </div>
+                </div>
+              </div>
+
+              <div onClick={() => { setShowAICoach(true); }} className="group cursor-pointer transform hover:scale-105 transition-all rounded-3xl h-52 sm:h-80 shadow-2xl relative overflow-hidden">
+                <div className="absolute inset-0">
+                  <img src="/assets/images/card-coach.jpg" alt="AI Coach" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-indigo-900 via-indigo-900/60 to-transparent"></div>
+                </div>
+                <div className="relative z-10 p-5 sm:p-8 h-full flex flex-col justify-end">
+                  <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-md shadow-lg ring-1 ring-white/30">
+                    <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-yellow-300" />
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2 underline decoration-indigo-500/50 decoration-4 underline-offset-4">AI Coach</h2>
+                  <p className="text-sm sm:text-base text-indigo-100 mb-4 font-medium italic">Elite 1-on-1 Personalized Coaching</p>
+                  <div className="flex items-center gap-2 text-white font-semibold bg-indigo-500/20 self-start px-3 py-1 rounded-full border border-indigo-400/30">
+                    <span>Unlock Dossier</span>
+                    <Sparkles className="w-4 h-4 text-yellow-300" />
                   </div>
                 </div>
               </div>
@@ -1283,7 +1391,7 @@ const App = () => {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Recent Workouts</h3>
-                    <button onClick={() => navigateTo('history')} className={`text-sm font-semibold ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}>
+                    <button onClick={() => navigateTo('analytics')} className={`text-sm font-semibold ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}>
                       See All
                     </button>
                   </div>
@@ -1356,6 +1464,9 @@ const App = () => {
           <div className={`absolute inset-0 ${darkMode ? 'bg-gray-900/90' : 'bg-white/90'} backdrop-blur-sm`}></div>
         </div>
 
+        {/* Loading Overlay */}
+
+
         <div className="relative z-10 pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6">
           {renderRootComponents()}
           <Navbar />
@@ -1414,16 +1525,7 @@ const App = () => {
                         </select>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Primary Goal *</label>
-                        <select value={preferences.goalType} onChange={(e) => setPreferences({ ...preferences, goalType: e.target.value })} className="w-full px-4 py-3 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-semibold">
-                          <option value="">Select your goal</option>
-                          <option value="weight-loss">📉 Weight Loss</option>
-                          <option value="weight-gain">📈 Weight Gain</option>
-                          <option value="muscle-building">💪 Muscle Building</option>
-                          <option value="endurance">🏃 Endurance</option>
-                        </select>
-                      </div>
+
 
                       <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">Workout Location *</label>
@@ -1613,12 +1715,75 @@ const App = () => {
               )}
             </div>
 
+
+
+
+
+            {/* Weeks Selector (Only if 4-week plan) */}
+            {currentPlan.plan.weeks && (
+              <div className="space-y-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-gray-900">Program Schedule</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedWeek(prev => Math.max(1, prev - 1))}
+                      disabled={selectedWeek === 1}
+                      className="p-2 rounded-xl bg-white border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-all"
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => setSelectedWeek(prev => Math.min(4, prev + 1))}
+                      disabled={selectedWeek === 4}
+                      className="p-2 rounded-xl bg-white border border-gray-200 text-gray-600 disabled:opacity-30 hover:bg-gray-50 transition-all"
+                    >
+                      <ArrowLeft className="w-5 h-5 rotate-180" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                  {[1, 2, 3, 4].map(wk => (
+                    <button
+                      key={wk}
+                      onClick={() => setSelectedWeek(wk)}
+                      className={`px-6 py-3 rounded-2xl font-bold whitespace-nowrap transition-all flex flex-col items-center min-w-[100px] border-2 ${selectedWeek === wk
+                        ? 'bg-purple-600 text-white border-purple-400 shadow-xl scale-105'
+                        : 'bg-white text-gray-600 border-gray-100 hover:border-purple-200'}`}
+                    >
+                      <span className="text-[10px] uppercase tracking-wider opacity-80 mb-0.5">Week</span>
+                      <span className="text-xl">{wk}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="bg-gradient-to-r from-purple-100 to-indigo-100 p-4 rounded-2xl border border-purple-200 flex items-center gap-3">
+                  <div className="bg-purple-600 p-2 rounded-lg">
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-purple-900 font-bold leading-tight">
+                      {currentPlan.plan.weeks.find(w => w.weekNumber === selectedWeek)?.focus}
+                    </p>
+                    <p className="text-purple-700 text-xs">Current phase of your program</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {currentPlan.type === 'workout' ? (
               <div className="space-y-4 sm:space-y-6 mb-6 sm:mb-8">
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900">Weekly Routine</h3>
-                {(currentPlan.plan.routine || []).map((day, idx) => {
+                {(currentPlan.plan.weeks
+                  ? (currentPlan.plan.weeks.find(w => w.weekNumber === selectedWeek)?.days || [])
+                  : (currentPlan.plan.routine || [])
+                ).map((day, idx) => {
                   const isExpanded = expandedDays[idx] !== undefined ? expandedDays[idx] : idx === 0;
                   const toggleDay = () => setExpandedDays(prev => ({ ...prev, [idx]: !isExpanded }));
+
+                  // Handle different data structures (legacy string vs object)
+                  const dayName = day.day || day.dayName;
+                  const dayFocus = day.focus;
 
                   return (
                     <div key={idx} className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-gray-200 mb-4 overflow-hidden shadow-sm">
@@ -1627,10 +1792,10 @@ const App = () => {
                         className="w-full flex items-center justify-between p-5 sm:p-6 hover:bg-white/50 transition-all text-left group"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="bg-gray-700 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md">{idx + 1}</div>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md ${day.exercises.length === 0 ? 'bg-gray-300 text-gray-500' : 'bg-gray-700 text-white'}`}>{idx + 1}</div>
                           <div>
-                            <h4 className="text-xl font-bold text-gray-900 group-hover:text-purple-700 transition-colors">{day.day}</h4>
-                            <p className="text-gray-600 font-semibold text-sm">{day.focus}</p>
+                            <h4 className="text-xl font-bold text-gray-900 group-hover:text-purple-700 transition-colors">{dayName}</h4>
+                            <p className="text-gray-600 font-semibold text-sm">{dayFocus}</p>
                           </div>
                         </div>
                         <div className="bg-white p-2 rounded-full shadow-inner group-hover:bg-purple-50 transition-all">
@@ -1638,32 +1803,67 @@ const App = () => {
                         </div>
                       </button>
 
-                      {isExpanded && (
+                      {isExpanded && day.exercises && day.exercises.length > 0 && (
                         <div className="px-5 sm:px-6 pb-6 pt-2 border-t border-gray-100 bg-white/30 backdrop-blur-sm animate-in fade-in slide-in-from-top-1 duration-200">
                           <ul className="space-y-3">
                             {day.exercises.map((exercise, eidx) => {
+                              // Detailed Object (New) or String (Legacy)
                               const isObject = typeof exercise === 'object' && exercise !== null;
                               const name = isObject ? exercise.name : exercise;
-                              const details = isObject ? `${exercise.sets} sets x ${exercise.reps}` : '';
 
                               return (
-                                <li key={eidx} className="flex items-center justify-between text-gray-700 p-3 bg-white/60 rounded-xl hover:bg-white/80 transition-all border border-gray-50 shadow-sm group/exercise">
-                                  <div className="flex items-start gap-3 font-medium">
-                                    <div className="w-2 h-2 rounded-full bg-purple-400 mt-2"></div>
-                                    <div className="flex flex-col">
-                                      <span className="text-gray-800 font-semibold">{name}</span>
-                                      {details && <span className="text-xs text-gray-500 font-normal mt-0.5">{details}</span>}
+                                <li key={eidx} className="flex flex-col gap-2 text-gray-700 p-4 bg-white/80 rounded-xl hover:bg-white transition-all border border-gray-100 shadow-sm group/exercise">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex items-center gap-3 font-medium">
+                                      <div className="w-2 h-2 rounded-full bg-purple-400"></div>
+                                      <span className="text-gray-900 font-bold text-lg">{name}</span>
                                     </div>
+                                    <a
+                                      href={`https://www.youtube.com/results?search_query=how+to+do+${encodeURIComponent(name)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-red-500 hover:bg-red-50 p-1.5 rounded-full transition-all"
+                                      title="Watch Tutorial"
+                                    >
+                                      <Youtube className="w-5 h-5" />
+                                    </a>
                                   </div>
-                                  <a
-                                    href={`https://www.youtube.com/results?search_query=how+to+do+${encodeURIComponent(name)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-red-500 hover:bg-red-50 p-2 rounded-full transition-all flex-shrink-0 group-hover/exercise:scale-110"
-                                    title="Watch Tutorial"
-                                  >
-                                    <Youtube className="w-6 h-6" />
-                                  </a>
+
+                                  {/* Rich Details Badge Row */}
+                                  {isObject && (
+                                    <div className="flex flex-wrap gap-2 pl-5 mt-1">
+                                      <span className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-lg border border-purple-200">
+                                        {exercise.sets} Sets
+                                      </span>
+                                      <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200">
+                                        {exercise.reps} Reps
+                                      </span>
+                                      <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-lg border border-green-200 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" /> {exercise.restSeconds || exercise.rest}s Rest
+                                      </span>
+                                      {exercise.tempo && (
+                                        <span className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-lg border border-orange-200">
+                                          Tempo: {exercise.tempo}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Instructions & Progression */}
+                                  {isObject && (
+                                    <div className="pl-5 mt-1 text-xs text-gray-500 space-y-1">
+                                      {exercise.instructions && <p>Trying: {exercise.instructions}</p>}
+                                      {exercise.progression && (
+                                        <p className="text-purple-600 font-bold flex items-center gap-1">
+                                          <TrendingUp className="w-3 h-3" /> {exercise.progression}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {!isObject && (
+                                    <div className="pl-5 text-sm text-gray-500">Legacy Exercise Format</div>
+                                  )}
                                 </li>
                               );
                             })}
@@ -2021,6 +2221,7 @@ const App = () => {
                             }, {}))
                         };
                         setCurrentPlan(loadedPlan);
+                        setSelectedWeek(1);
                         navigateTo('result');
                       }} className="w-full mt-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-2.5 sm:py-3 rounded-xl font-bold text-sm sm:text-base hover:shadow-lg transition-all active:scale-95">
                         View Full Plan
@@ -2036,9 +2237,18 @@ const App = () => {
     );
   }
 
-  // Redirect history to analytics (consolidated view)
+  // Redirect legacy history to analytics
   if (currentView === 'history') {
-    return <Analytics workoutSessions={workoutSessions} onBack={() => navigateTo('home')} />;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900">
+        {renderRootComponents()}
+        <Navbar />
+        <Analytics
+          workoutSessions={workoutSessions}
+          onBack={() => navigateTo('home')}
+        />
+      </div>
+    );
   }
 
 
@@ -2698,6 +2908,7 @@ const App = () => {
       </div>
     );
   }
+
 
   return null;
 };
