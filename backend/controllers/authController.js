@@ -164,6 +164,68 @@ const login = async (req, res) => {
     }
 };
 
+// @desc    Google Login
+// @route   POST /api/auth/google
+// @access  Public
+const googleLogin = async (req, res) => {
+    try {
+        const { credential } = req.body;
+
+        if (!credential) {
+            return res.status(400).json({ success: false, message: 'Google credential is required' });
+        }
+
+        const { OAuth2Client } = require('google-auth-library');
+        const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+        const ticket = await client.verifyIdToken({
+            idToken: credential,
+            audience: process.env.GOOGLE_CLIENT_ID
+        });
+
+        const payload = ticket.getPayload();
+        const { email, name, picture, sub: googleId } = payload;
+
+        // Use our User model method to find or create the Google User
+        const user = await User.googleLogin({ email, name, picture, googleId });
+
+        // Update last login
+        await User.updateLastLogin(user.id);
+
+        // Generate tokens
+        const { accessToken, refreshToken } = generateTokens(user.id);
+
+        // Save refresh token
+        const refreshExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        await RefreshToken.create(user.id, refreshToken, refreshExpires);
+
+        res.json({
+            success: true,
+            message: 'Google Login successful',
+            data: {
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    gender: user.gender,
+                    isEmailVerified: user.is_email_verified,
+                    isPremium: user.is_premium
+                },
+                accessToken,
+                refreshToken
+            }
+        });
+
+    } catch (error) {
+        console.error('Google login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error during Google login',
+            error: error.message
+        });
+    }
+};
+
 // @desc    Refresh access token
 // @route   POST /api/auth/refresh
 // @access  Public
@@ -441,6 +503,7 @@ const deleteAccount = async (req, res) => {
 module.exports = {
     register,
     login,
+    googleLogin,
     refreshAccessToken,
     logout,
     getMe,

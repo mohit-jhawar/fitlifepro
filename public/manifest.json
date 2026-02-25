@@ -1,25 +1,26 @@
 {
   "short_name": "FitLife",
   "name": "FitLife - Your Fitness Journey",
+  "description": "Your personalized fitness and nutrition companion with custom workout and diet plans.",
   "icons": [
     {
       "src": "assets/images/fitlife-logo.png",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/png"
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "assets/images/fitlife-logo.png",
+      "sizes": "512x512",
       "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "assets/images/fitlife-logo.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "theme_color": "#7c3aed",
-  "background_color": "#1e1b4b"
+  "background_color": "#1e1b4b",
+  "categories": ["health", "fitness", "lifestyle"]
 }

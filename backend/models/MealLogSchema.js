@@ -1,46 +1,44 @@
 const mongoose = require('mongoose');
 
+const foodItemSchema = new mongoose.Schema({
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+    name: { type: String, required: true },
+    brand: { type: String, default: null },
+    quantity: { type: Number, required: true },   // in grams
+    calories: { type: Number, required: true },
+    protein: { type: Number, default: 0 },
+    carbs: { type: Number, default: 0 },
+    fat: { type: Number, default: 0 },
+    fiber: { type: Number, default: 0 }
+}, { _id: true });
+
 const mealLogSchema = new mongoose.Schema({
     user_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: true,
+        index: true
     },
-    plan_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Plan',
-        default: null
+    log_date: {
+        type: String,      // stored as 'YYYY-MM-DD' string for easy querying
+        required: true,
+        index: true
     },
-    meal_date: {
-        type: Date,
-        required: true
-    },
-    meal_type: {
-        type: String,
-        enum: ['breakfast', 'lunch', 'dinner', 'snack', null],
-        default: null
-    },
-    items: {
-        type: mongoose.Schema.Types.Mixed,
-        default: null
-    },
-    total_calories: {
-        type: Number,
-        default: null
-    },
-    macros: {
-        type: mongoose.Schema.Types.Mixed,
-        default: null
-    },
-    created_at: {
-        type: Date,
-        default: Date.now
-    }
+    calorie_goal: { type: Number, default: 2000 },
+    protein_goal: { type: Number, default: 150 },
+    carbs_goal: { type: Number, default: 250 },
+    fat_goal: { type: Number, default: 65 },
+    water_glasses: { type: Number, default: 0 },
+    water_goal: { type: Number, default: 8 },
+    breakfast: [foodItemSchema],
+    lunch: [foodItemSchema],
+    dinner: [foodItemSchema],
+    snacks: [foodItemSchema]
 }, {
-    timestamps: false
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });
 
-// Index for user queries
-mealLogSchema.index({ user_id: 1, meal_date: -1 });
+// Compound unique index: one log per user per day
+mealLogSchema.index({ user_id: 1, log_date: 1 }, { unique: true });
 
 module.exports = mongoose.model('MealLog', mealLogSchema);

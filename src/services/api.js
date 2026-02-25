@@ -68,6 +68,11 @@ export const authAPI = {
         return response.data;
     },
 
+    googleLogin: async (credential) => {
+        const response = await api.post('/auth/google', { credential });
+        return response.data;
+    },
+
     logout: async (refreshToken) => {
         const response = await api.post('/auth/logout', { refreshToken });
         return response.data;
@@ -170,6 +175,39 @@ export const feedbackAPI = {
 export const aiAPI = {
     chat: async (message, history) => {
         const response = await api.post('/ai/chat', { message, history });
+        return response.data;
+    }
+};
+
+// Nutrition / Calorie Tracker API calls
+export const nutritionAPI = {
+    getDaily: async (date) => {
+        const params = date ? `?date=${date}` : '';
+        const response = await api.get(`/nutrition/daily${params}`);
+        return response.data;
+    },
+    logFood: async (date, mealType, food, goals) => {
+        const response = await api.post('/nutrition/log', { date, meal_type: mealType, food, goals });
+        return response.data;
+    },
+    removeFood: async (date, mealType, itemId) => {
+        const response = await api.delete('/nutrition/log/item', { data: { date, meal_type: mealType, item_id: itemId } });
+        return response.data;
+    },
+    updateWater: async (date, glasses) => {
+        const response = await api.put('/nutrition/water', { date, glasses });
+        return response.data;
+    },
+    updateGoals: async (date, goals) => {
+        const response = await api.put('/nutrition/goals', { date, ...goals });
+        return response.data;
+    },
+    getWeekly: async () => {
+        const response = await api.get('/nutrition/weekly');
+        return response.data;
+    },
+    getGoal: async () => {
+        const response = await api.get('/nutrition/goal');
         return response.data;
     }
 };

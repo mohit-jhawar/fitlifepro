@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, User, Calendar, ArrowLeft, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { authAPI } from '../services/api';
+import { GoogleLogin } from '@react-oauth/google';
 
 const AuthPage = ({ onAuthSuccess }) => {
     const [isLogin, setIsLogin] = useState(true);
@@ -15,7 +16,7 @@ const AuthPage = ({ onAuthSuccess }) => {
     const [pendingEmail, setPendingEmail] = useState('');
     const [resendCountdown, setResendCountdown] = useState(0);
 
-    const { login } = useAuth();
+    const { login, googleLogin } = useAuth();
 
     const [loginData, setLoginData] = useState({
         email: '',
@@ -47,22 +48,17 @@ const AuthPage = ({ onAuthSuccess }) => {
         const result = await login(loginData);
 
         if (result.success) {
-            setSuccess('Login successful! Redirecting...');
+            setSuccess('Login successful!');
             setTimeout(() => {
                 if (onAuthSuccess) onAuthSuccess();
-            }, 1500);
+            }, 800);
         } else {
-            // Check if verification is required
             if (result.data?.requiresVerification) {
                 setPendingEmail(result.data.email);
                 setShowOTPInput(true);
                 setResendCountdown(60);
-                setSuccess('Please verify your email to continue. OTP sent!');
-
-                // Optionally trigger a resend automatically or just let them use the existing one
-                // authAPI.resendOTP(result.data.email); 
+                setSuccess('Please verify via OTP.');
             } else {
-                // Check if there are validation errors
                 if (result.errors && Array.isArray(result.errors)) {
                     setValidationErrors(result.errors);
                 } else {
@@ -74,30 +70,50 @@ const AuthPage = ({ onAuthSuccess }) => {
         setLoading(false);
     };
 
+    const handleGoogleSuccess = async (credentialResponse) => {
+        setError('');
+        setValidationErrors([]);
+        setLoading(true);
+
+        const result = await googleLogin(credentialResponse.credential);
+
+        if (result.success) {
+            setSuccess('Google Login successful!');
+            setTimeout(() => {
+                if (onAuthSuccess) onAuthSuccess();
+                else window.location.href = '/plans'; // Default redirect
+            }, 800);
+        } else {
+            setError(result.message || 'Google Login failed');
+        }
+        setLoading(false);
+    };
+
+    const handleGoogleError = () => {
+        setError('Google Login failed. Please try again.');
+    };
+
     const handleRegister = async (e) => {
         e.preventDefault();
         setError('');
         setValidationErrors([]);
         setLoading(true);
 
-        // Validate gender is selected
         if (!registerData.gender) {
-            setValidationErrors([{ field: 'gender', message: 'Please select your gender' }]);
+            setValidationErrors([{ field: 'gender', message: 'Select gender' }]);
             setLoading(false);
             return;
         }
 
         try {
-            // Step 1: Send registration request (will generate OTP)
             const response = await authAPI.register(registerData);
 
             if (response.success) {
                 setPendingEmail(registerData.email);
                 setShowOTPInput(true);
-                setResendCountdown(60); // Start 60-second countdown
-                setSuccess('OTP sent to your email! Please check your inbox.');
+                setResendCountdown(60);
+                setSuccess('OTP sent!');
             } else {
-                // Check if there are validation errors
                 if (response.errors && Array.isArray(response.errors)) {
                     setValidationErrors(response.errors);
                 } else {
@@ -105,7 +121,6 @@ const AuthPage = ({ onAuthSuccess }) => {
                 }
             }
         } catch (err) {
-            // Parse validation errors from backend
             if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
                 setValidationErrors(err.response.data.errors);
             } else {
@@ -125,27 +140,26 @@ const AuthPage = ({ onAuthSuccess }) => {
             const response = await authAPI.verifyOTP({ email: pendingEmail, otp });
 
             if (response.success) {
-                // Store tokens and user data
                 localStorage.setItem('accessToken', response.data.accessToken);
                 localStorage.setItem('refreshToken', response.data.refreshToken);
                 localStorage.setItem('user', JSON.stringify(response.data.user));
 
-                setSuccess('Email verified! Welcome to FitLife Pro!');
+                setSuccess('Verified! Welcome!');
                 setTimeout(() => {
-                    window.location.reload(); // Reload to update auth context
-                }, 1500);
+                    window.location.reload();
+                }, 1000);
             } else {
                 setError(response.message);
             }
         } catch (err) {
-            setError(err.response?.data?.message || 'OTP verification failed');
+            setError(err.response?.data?.message || 'Verification failed');
         }
 
         setLoading(false);
     };
 
     const handleResendOTP = async () => {
-        if (resendCountdown > 0) return; // Prevent spamming
+        if (resendCountdown > 0) return;
 
         setError('');
         setLoading(true);
@@ -154,288 +168,328 @@ const AuthPage = ({ onAuthSuccess }) => {
             const response = await authAPI.resendOTP(pendingEmail);
 
             if (response.success) {
-                setResendCountdown(60); // Reset countdown
-                setSuccess('OTP resent! Please check your email.');
-                setTimeout(() => setSuccess(''), 3000);
+                setResendCountdown(60);
+                setSuccess('OTP resent.');
+                setTimeout(() => setSuccess(''), 2000);
             } else {
                 setError(response.message);
             }
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to resend OTP');
+            setError(err.response?.data?.message || 'Failed to resend');
         }
 
         setLoading(false);
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 pt-12 sm:pt-24 p-4 sm:p-6">
-            <div className="max-w-md mx-auto">
-                <button
-                    onClick={onAuthSuccess}
-                    className="mb-6 flex items-center gap-2 text-white hover:text-gray-200 font-semibold transition-all bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl backdrop-blur-sm"
-                >
-                    <ArrowLeft className="w-5 h-5" />
-                    <span>Back</span>
-                </button>
+        <div className="min-h-screen relative flex bg-gray-900 overflow-hidden">
+            {/* Background Image Layer */}
+            <div className="fixed inset-0 z-0">
+                <img
+                    src="/assets/images/workout-bg.jpg"
+                    alt="Fitness background"
+                    className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-purple-900/85 to-black/80 backdrop-blur-[2px]" />
+            </div>
 
-                <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-5 sm:p-10 shadow-2xl">
-                    <div className="text-center mb-5 sm:mb-8">
-                        <h2 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-1 sm:mb-2">
-                            {showOTPInput ? 'Verify Your Email' : (isLogin ? 'Welcome Back!' : 'Join FitLife Pro')}
-                        </h2>
-                        <p className="text-sm sm:text-base text-gray-600">
-                            {showOTPInput
-                                ? 'Enter the OTP sent to your email'
-                                : (isLogin ? 'Login to continue your fitness journey' : 'Start your fitness transformation today')}
-                        </p>
-                    </div>
+            {/* Content Container */}
+            <div className="relative z-10 w-full min-h-screen flex flex-col lg:flex-row items-center justify-center lg:justify-between px-6 lg:px-16 xl:px-24 pt-32 pb-12 gap-8">
 
-                    {error && (
-                        <div className="mb-4 sm:mb-6 bg-red-50 border-2 border-red-200 rounded-xl p-3 sm:p-4">
-                            <p className="text-red-700 font-semibold text-xs sm:text-sm">{error}</p>
-                        </div>
-                    )}
+                {/* Left Side: Text - Slightly Scaled Down */}
+                <div className="w-full lg:w-1/2 flex flex-col justify-center items-center lg:items-start text-center lg:text-left animate-fadeIn space-y-5 lg:space-y-6">
+                    <h2 className="text-4xl lg:text-5xl xl:text-6xl font-extrabold text-white leading-tight tracking-tight drop-shadow-xl">
+                        Transform Your <br />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-pink-200 to-white">Body & Mind</span>
+                    </h2>
+                    <p className="text-base lg:text-lg text-purple-100/90 leading-relaxed font-light tracking-wide max-w-md">
+                        Join thousands of users transforming their lives with personalized workout plans and AI-driven coaching.
+                    </p>
 
-                    {validationErrors.length > 0 && (
-                        <div className="mb-4 sm:mb-6 bg-red-50 border-2 border-red-200 rounded-xl p-3 sm:p-4">
-                            <p className="text-red-800 font-bold text-xs sm:text-sm mb-2">⚠️ Please fix the following errors:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                                {validationErrors.map((err, index) => (
-                                    <li key={index} className="text-red-700 text-xs sm:text-sm">
-                                        <span className="font-semibold capitalize">{err.field}:</span> {err.message}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    {success && (
-                        <div className="mb-4 sm:mb-6 bg-green-50 border-2 border-green-200 rounded-xl p-3 sm:p-4">
-                            <p className="text-green-700 font-semibold text-xs sm:text-sm">{success}</p>
-                        </div>
-                    )}
-
-                    {showOTPInput ? (
-                        <form onSubmit={handleVerifyOTP} className="space-y-4 sm:space-y-6">
-                            <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-4 mb-4">
-                                <div className="flex items-start gap-3">
-                                    <Mail className="w-6 h-6 text-purple-600 flex-shrink-0 mt-1" />
-                                    <div className="flex-1">
-                                        <p className="text-purple-900 font-semibold text-sm mb-1">📧 Check Your Email</p>
-                                        <p className="text-purple-700 text-xs">We've sent a 6-digit  verification code to:</p>
-                                        <p className="text-purple-900 font-mono font-bold text-sm mt-1">{pendingEmail}</p>
-                                    </div>
+                    <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
+                        <div className="flex -space-x-2">
+                            {[1, 2, 3].map((i) => (
+                                <div key={i} className="w-9 h-9 rounded-full border-2 border-purple-400 bg-purple-900/60 flex items-center justify-center text-xs text-white font-bold backdrop-blur-sm shadow-sm">
+                                    {i === 1 ? 'JD' : i === 2 ? 'AS' : 'MK'}
                                 </div>
-                            </div>
+                            ))}
+                        </div>
+                        <div className="text-white font-medium text-sm text-opacity-90">
+                            <span className="text-yellow-400 mr-1">★★★★★</span>
+                            Trusted by 200+ members
+                        </div>
+                    </div>
+                </div>
 
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Enter OTP</label>
+                {/* Right Side: Compact White Card */}
+                <div className="w-full lg:w-auto flex justify-center lg:justify-end animate-fadeInUp lg:pl-8">
+                    <div className="bg-white rounded-[1.5rem] p-5 sm:p-6 shadow-2xl w-full max-w-[360px] relative z-20">
+
+                        <div className="text-center mb-4">
+                            <h2 className="text-xl font-bold text-gray-900 mb-1">
+                                {showOTPInput ? 'Verify Email' : (isLogin ? 'Welcome Back!' : 'Join FitLife Pro')}
+                            </h2>
+                            <p className="text-gray-500 text-xs font-medium">
+                                {showOTPInput ? 'Enter code sent to email' :
+                                    isLogin ? 'Login to continue' :
+                                        'Start your journey today'}
+                            </p>
+                        </div>
+
+                        {error && (
+                            <div className="mb-4 bg-red-50 text-red-600 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 border border-red-100">
+                                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                {error}
+                            </div>
+                        )}
+                        {validationErrors.length > 0 && (
+                            <div className="mb-4 bg-red-50 p-3 rounded-lg border border-red-100 text-sm">
+                                <p className="text-red-700 font-bold text-xs mb-1">Please fix:</p>
+                                <ul className="space-y-0.5">
+                                    {validationErrors.map((err, i) => (
+                                        <li key={i} className="text-red-600 text-xs flex items-center gap-1.5">
+                                            <div className="w-1 h-1 rounded-full bg-red-500" />
+                                            <span className="capitalize font-semibold">{err.field}:</span> {err.message}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                        {success && (
+                            <div className="mb-4 bg-green-50 text-green-600 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 border border-green-100">
+                                <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                {success}
+                            </div>
+                        )}
+
+                        {showOTPInput ? (
+                            <form onSubmit={handleVerifyOTP} className="space-y-4">
+                                <div className="bg-purple-50 rounded-lg p-3 text-center border border-purple-100">
+                                    <p className="text-purple-600 text-[10px] font-bold uppercase tracking-wider mb-0.5">Code sent to</p>
+                                    <p className="text-purple-900 font-mono font-medium text-sm truncate px-2">{pendingEmail}</p>
+                                </div>
+
                                 <input
                                     type="text"
                                     value={otp}
                                     onChange={(e) => setOTP(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                    className="w-full px-4 py-4 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-2xl text-center font-mono text-gray-900 bg-white tracking-widest"
+                                    className="w-full h-12 text-center text-2xl font-mono tracking-[0.5em] font-bold text-gray-900 bg-gray-50 rounded-xl border border-gray-200 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all placeholder-gray-300"
                                     placeholder="000000"
                                     maxLength={6}
-                                    required
+                                    autoFocus
                                 />
-                                <p className="text-xs text-gray-500 mt-2 text-center">Enter the 6-digit code from your email</p>
-                            </div>
 
-                            <button
-                                type="submit"
-                                disabled={loading || otp.length !== 6}
-                                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 sm:py-4 rounded-2xl font-bold text-base sm:text-lg shadow-xl hover:shadow-2xl transition-all transform active:scale-95 sm:hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {loading ? 'Verifying...' : 'Verify & Complete Registration'}
-                            </button>
-
-                            <div className="flex items-center justify-center gap-2">
                                 <button
-                                    type="button"
-                                    onClick={handleResendOTP}
-                                    disabled={resendCountdown > 0 || loading}
-                                    className="flex items-center gap-2 text-purple-600 hover:text-purple-700 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                    type="submit"
+                                    disabled={loading || otp.length !== 6}
+                                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-purple-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                                 >
-                                    <RefreshCw className={`w-4 h-4 ${loading && 'animate-spin'}`} />
-                                    {resendCountdown > 0
-                                        ? `Resend OTP in ${resendCountdown}s`
-                                        : 'Resend OTP'}
+                                    {loading ? 'Verifying...' : 'Verify Email'}
                                 </button>
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowOTPInput(false);
-                                    setOTP('');
-                                    setError('');
-                                    setSuccess('');
-                                }}
-                                className="w-full text-gray-600 hover:text-gray-800 font-semibold"
-                            >
-                                ← Back to Registration
-                            </button>
-                        </form>
-                    ) : isLogin ? (
-                        <form onSubmit={handleLogin} className="space-y-4 sm:space-y-6">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Email</label>
-                                <div className="relative">
-                                    <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="email"
-                                        value={loginData.email}
-                                        onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                                        className="w-full pl-12 pr-4 py-3 sm:py-4 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-base sm:text-lg text-gray-900 bg-white"
-                                        placeholder="your@email.com"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Password</label>
-                                <div className="relative">
-                                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type={showPassword ? 'text' : 'password'}
-                                        value={loginData.password}
-                                        onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                                        className="w-full pl-12 pr-12 py-3 sm:py-4 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-base sm:text-lg text-gray-900 bg-white"
-                                        placeholder="••••••••"
-                                        required
-                                    />
+                                <div className="text-center">
                                     <button
                                         type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                        onClick={handleResendOTP}
+                                        disabled={resendCountdown > 0}
+                                        className="text-purple-600 hover:text-purple-700 text-xs font-medium disabled:opacity-50"
                                     >
-                                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                        {resendCountdown > 0 ? `Resend in ${resendCountdown}s` : 'Resend Code'}
                                     </button>
                                 </div>
-                            </div>
+                            </form>
+                        ) : isLogin ? (
+                            <div className="space-y-4">
+                                <form onSubmit={handleLogin} className="space-y-3.5">
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1 ml-1">Email</label>
+                                            <input
+                                                type="email"
+                                                value={loginData.email}
+                                                onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+                                                className="w-full px-4 py-3 bg-gray-50 border border-transparent focus:bg-white focus:border-purple-500 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 transition-all text-sm"
+                                                placeholder="hello@example.com"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1 ml-1">Password</label>
+                                            <div className="relative">
+                                                <input
+                                                    type={showPassword ? 'text' : 'password'}
+                                                    value={loginData.password}
+                                                    onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-gray-50 border border-transparent focus:bg-white focus:border-purple-500 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 transition-all text-sm"
+                                                    placeholder="••••••••"
+                                                    required
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPassword(!showPassword)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                >
+                                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 sm:py-4 rounded-2xl font-bold text-base sm:text-lg shadow-xl hover:shadow-2xl transition-all transform active:scale-95 sm:hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {loading ? 'Logging in...' : 'Login'}
-                            </button>
-                        </form>
-                    ) : (
-                        <form onSubmit={handleRegister} className="space-y-4 sm:space-y-6">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2 text-xs sm:text-sm">Full Name</label>
-                                <div className="relative">
-                                    <User className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        value={registerData.name}
-                                        onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
-                                        className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-4 border-2 border-gray-200 rounded-xl sm:rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm sm:text-lg text-gray-900 bg-white"
-                                        placeholder="John Doe"
-                                        required
-                                    />
-                                </div>
-                            </div>
+                                    <div className="flex items-center justify-between pt-0.5">
+                                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                            <input type="checkbox" className="w-3.5 h-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
+                                            <span className="text-xs text-gray-500 font-medium">Remember me</span>
+                                        </label>
+                                        <button type="button" className="text-xs font-bold text-purple-600 hover:text-purple-700">Forgot Password?</button>
+                                    </div>
 
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2 text-xs sm:text-sm">Email</label>
-                                <div className="relative">
-                                    <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                                    <input
-                                        type="email"
-                                        value={registerData.email}
-                                        onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
-                                        className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-4 border-2 border-gray-200 rounded-xl sm:rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm sm:text-lg text-gray-900 bg-white"
-                                        placeholder="your@email.com"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Password</label>
-                                <div className="relative">
-                                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type={showPassword ? 'text' : 'password'}
-                                        value={registerData.password}
-                                        onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
-                                        className="w-full pl-12 pr-12 py-4 border-2 border-gray-200 rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-lg text-gray-900 bg-white"
-                                        placeholder="Min. 8 characters"
-                                        required
-                                    />
                                     <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                        type="submit"
+                                        disabled={loading}
+                                        className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-purple-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mt-1 text-sm"
                                     >
-                                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                        {loading ? 'Signing In...' : 'Sign In'}
                                     </button>
-                                </div>
-                                <p className="text-xs text-gray-500 mt-2">Must contain uppercase, lowercase, number, and special character (@$!%*?&)</p>
-                            </div>
+                                </form>
 
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2 text-xs sm:text-sm">Gender *</label>
-                                <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                                    {['male', 'female', 'other'].map((gender) => (
-                                        <button
-                                            key={gender}
-                                            type="button"
-                                            onClick={() => setRegisterData({ ...registerData, gender })}
-                                            className={`px - 2 sm: px - 4 py - 2 sm: py - 3 border - 2 rounded - xl font - semibold capitalize text - xs sm: text - base ${registerData.gender === gender
-                                                ? 'bg-purple-500 text-white border-purple-500'
-                                                : 'bg-white text-gray-700 border-gray-200'
-                                                } `}
-                                        >
-                                            {gender}
-                                        </button>
-                                    ))}
+                                <div className="relative flex items-center justify-center pt-2 pb-1">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <div className="w-full border-t border-gray-200"></div>
+                                    </div>
+                                    <div className="relative px-3 bg-white text-xs text-gray-400 font-medium">Or</div>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2 text-xs sm:text-sm">Date of Birth (Optional)</label>
-                                <div className="relative">
-                                    <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                                    <input
-                                        type="date"
-                                        value={registerData.dateOfBirth}
-                                        onChange={(e) => setRegisterData({ ...registerData, dateOfBirth: e.target.value })}
-                                        className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-4 border-2 border-gray-200 rounded-xl sm:rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm sm:text-lg text-gray-900 bg-white"
+                                <div className="flex justify-center w-full">
+                                    <GoogleLogin
+                                        onSuccess={handleGoogleSuccess}
+                                        onError={handleGoogleError}
+                                        useOneTap
+                                        theme="outline"
+                                        shape="pill"
+                                        text="continue_with"
+                                        width="100%"
                                     />
                                 </div>
                             </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <form onSubmit={handleRegister} className="space-y-3.5">
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1 ml-1">Full Name</label>
+                                            <input
+                                                type="text"
+                                                value={registerData.name}
+                                                onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
+                                                className="w-full px-4 py-3 bg-gray-50 border border-transparent focus:bg-white focus:border-purple-500 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 transition-all text-sm"
+                                                placeholder="John Doe"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1 ml-1">Gender</label>
+                                                <select
+                                                    value={registerData.gender}
+                                                    onChange={(e) => setRegisterData({ ...registerData, gender: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-gray-50 border border-transparent focus:bg-white focus:border-purple-500 rounded-xl text-gray-900 focus:ring-2 focus:ring-purple-500/20 transition-all text-sm appearance-none"
+                                                >
+                                                    <option value="">Select</option>
+                                                    <option value="male">Male</option>
+                                                    <option value="female">Female</option>
+                                                    <option value="other">Other</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1 ml-1">Birth Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={registerData.dateOfBirth}
+                                                    onChange={(e) => setRegisterData({ ...registerData, dateOfBirth: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-gray-50 border border-transparent focus:bg-white focus:border-purple-500 rounded-xl text-gray-900 focus:ring-2 focus:ring-purple-500/20 transition-all text-sm"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1 ml-1">Email</label>
+                                            <input
+                                                type="email"
+                                                value={registerData.email}
+                                                onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                                                className="w-full px-4 py-3 bg-gray-50 border border-transparent focus:bg-white focus:border-purple-500 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 transition-all text-sm"
+                                                placeholder="hello@example.com"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1 ml-1">Password</label>
+                                            <div className="relative">
+                                                <input
+                                                    type={showPassword ? 'text' : 'password'}
+                                                    value={registerData.password}
+                                                    onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-gray-50 border border-transparent focus:bg-white focus:border-purple-500 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 transition-all text-sm"
+                                                    placeholder="Create password"
+                                                    required
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPassword(!showPassword)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                >
+                                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 sm:py-4 rounded-2xl font-bold text-base sm:text-lg shadow-xl hover:shadow-2xl transition-all transform active:scale-95 sm:hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {loading ? 'Sending OTP...' : 'Create Account'}
-                            </button>
-                        </form>
-                    )}
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-purple-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mt-1 text-sm"
+                                    >
+                                        {loading ? 'Creating Account...' : 'Sign Up'}
+                                    </button>
+                                </form>
 
-                    {!showOTPInput && (
-                        <div className="mt-4 sm:mt-6 text-center">
-                            <button
-                                onClick={() => {
-                                    setIsLogin(!isLogin);
-                                    setError('');
-                                    setValidationErrors([]);
-                                    setSuccess('');
-                                }}
-                                className="text-purple-600 font-semibold hover:text-purple-700 transition-colors"
-                            >
-                                {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Login'}
-                            </button>
-                        </div>
-                    )}
+                                <div className="relative flex items-center justify-center pt-2 pb-1">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <div className="w-full border-t border-gray-200"></div>
+                                    </div>
+                                    <div className="relative px-3 bg-white text-xs text-gray-400 font-medium">Or</div>
+                                </div>
+
+                                <div className="flex justify-center w-full">
+                                    <GoogleLogin
+                                        onSuccess={handleGoogleSuccess}
+                                        onError={handleGoogleError}
+                                        theme="outline"
+                                        shape="pill"
+                                        text="signup_with"
+                                        width="100%"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {!showOTPInput && (
+                            <div className="mt-6 text-center border-t border-gray-100 pt-5">
+                                <p className="text-gray-500 text-xs sm:text-sm">
+                                    {isLogin ? "Don't have an account?" : "Already fit?"}
+                                    <button
+                                        onClick={() => {
+                                            setIsLogin(!isLogin);
+                                            setError('');
+                                            setValidationErrors([]);
+                                            setSuccess('');
+                                        }}
+                                        className="ml-1.5 text-purple-600 font-bold hover:text-purple-700 hover:underline transition-all"
+                                    >
+                                        {isLogin ? "Sign up" : "Log in"}
+                                    </button>
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

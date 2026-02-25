@@ -112,6 +112,32 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const googleLogin = async (credential) => {
+        try {
+            const response = await authAPI.googleLogin(credential);
+
+            if (response.success) {
+                const { user, accessToken, refreshToken } = response.data;
+
+                localStorage.setItem('accessToken', accessToken);
+                localStorage.setItem('refreshToken', refreshToken);
+                localStorage.setItem('user', JSON.stringify(user));
+
+                setUser(user);
+                setIsAuthenticated(true);
+
+                return { success: true, user };
+            }
+
+            return { success: false, message: response.message };
+        } catch (error) {
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Google Login failed',
+            };
+        }
+    };
+
 
 
     const updateProfile = async (updates) => {
@@ -151,6 +177,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated,
         register,
         login,
+        googleLogin,
         logout,
         updateProfile,
         changePassword,

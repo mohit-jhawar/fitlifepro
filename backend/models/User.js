@@ -32,6 +32,47 @@ class User {
         };
     }
 
+    // Google Login or Register
+    static async googleLogin({ email, name, picture, googleId }) {
+        let user = await UserModel.findOne({ email });
+
+        if (user) {
+            // User exists. Update with googleId if they didn't have it, and set verified if not.
+            user.google_id = googleId;
+            if (!user.is_email_verified) {
+                user.is_email_verified = true;
+                user.email_verification_token = null;
+            }
+            // Optional: update picture if they don't have one
+            if (!user.profile_picture_url && picture) {
+                user.profile_picture_url = picture;
+            }
+            await user.save();
+        } else {
+            // New user via Google
+            user = await UserModel.create({
+                email,
+                name,
+                profile_picture_url: picture,
+                google_id: googleId,
+                auth_provider: 'google',
+                is_email_verified: true // Google emails are verified
+            });
+        }
+
+        return {
+            id: user._id,
+            email: user.email,
+            name: user.name,
+            gender: user.gender,
+            date_of_birth: user.date_of_birth,
+            profile_picture_url: user.profile_picture_url,
+            is_email_verified: user.is_email_verified,
+            is_premium: user.is_premium,
+            created_at: user.created_at
+        };
+    }
+
     // Find user by email
     static async findByEmail(email) {
         const user = await UserModel.findOne({ email }).lean();

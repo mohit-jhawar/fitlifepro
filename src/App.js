@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Heart, Folder, Trash2, ArrowLeft, Dumbbell, Utensils, Calendar, Quote, TrendingUp, Award, User, Home, MessageCircle, Mail, Bell, Settings, LogIn, LogOut, Clock, Zap, Youtube, BarChart3, ChevronDown, ChevronUp, Sparkles, X } from 'lucide-react';
+import { Heart, Folder, Trash2, ArrowLeft, Dumbbell, Utensils, Calendar, Quote, TrendingUp, Award, User, Home, MessageCircle, Mail, Bell, Settings, LogIn, LogOut, Clock, Zap, Youtube, BarChart3, ChevronDown, ChevronUp, Sparkles, X, Flame } from 'lucide-react';
 import { plansAPI, workoutsAPI, feedbackAPI } from './services/api';
 
 import { getWorkoutPlan as generateWorkoutPlan, getDietPlan as generateDietPlan } from './plans';
@@ -11,6 +11,9 @@ import WorkoutTimer from './components/WorkoutTimer';
 import LoginDialog from './components/LoginDialog';
 import Analytics from './components/Analytics';
 import AICoach from './components/AICoach';
+import OfflineNotification from './components/OfflineNotification';
+import CalorieTracker from './components/CalorieTracker';
+import { cachePlans, getCachedPlans, cacheWorkoutSessions, getCachedWorkoutSessions } from './utils/db';
 
 const App = () => {
   const { user, isAuthenticated, logout, updateProfile } = useAuth();
@@ -271,19 +274,20 @@ const App = () => {
           const res = await plansAPI.getAll();
           if (res.success) {
             apiPlans = res.plans;
+            cachePlans(apiPlans);
           }
         } catch (e) {
           console.error("API Error", e);
+          // Network failed — load from IndexedDB cache
+          apiPlans = await getCachedPlans();
         }
       }
 
-      // Local plan loading logic removed to focus on database plans
-
-      // Only use database plans
       setSavedPlans(apiPlans);
     } catch (error) {
       console.error('Error loading plans:', error);
-      setSavedPlans([]);
+      const cached = await getCachedPlans();
+      setSavedPlans(cached);
     }
   }, [isAuthenticated]);
 
@@ -313,9 +317,18 @@ const App = () => {
       const res = await workoutsAPI.getAll();
       if (res.success) {
         setWorkoutSessions(res.sessions);
+        cacheWorkoutSessions(res.sessions);
         return;
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      // Network failed — load from IndexedDB cache
+      const cached = await getCachedWorkoutSessions();
+      if (cached.length > 0) {
+        setWorkoutSessions(cached);
+        return;
+      }
+    }
 
     // Fallback to localStorage
     const sessions = [];
@@ -784,6 +797,9 @@ const App = () => {
             <button onClick={() => navigateTo('analytics')} className="bg-white/20 p-2.5 rounded-xl hover:bg-white/30 transition-all border border-white/30" title="Analytics">
               <BarChart3 className="w-5 h-5 text-white" />
             </button>
+            <button onClick={() => navigateTo('calorie-tracker')} className="bg-white/20 p-2.5 rounded-xl hover:bg-white/30 transition-all border border-white/30" title="Calorie Tracker">
+              <Flame className="w-5 h-5 text-orange-300" />
+            </button>
             <button onClick={() => { setCurrentView('home'); setShowAICoach(true); }} className="bg-white/20 p-2.5 rounded-xl hover:bg-white/30 transition-all border border-white/30" title="AI Coach">
               <Sparkles className="w-5 h-5 text-yellow-400" />
             </button>
@@ -875,6 +891,9 @@ const App = () => {
             <button onClick={() => { navigateTo('analytics'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
               <BarChart3 className="w-5 h-5 text-gray-300" /><span>Analytics</span>
             </button>
+            <button onClick={() => { navigateTo('calorie-tracker'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
+              <Flame className="w-5 h-5 text-orange-400" /><span>Calorie Tracker</span>
+            </button>
             <button onClick={() => { setCurrentView('home'); setShowAICoach(true); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
               <Sparkles className="w-5 h-5 text-yellow-400" /><span>AI Coach</span>
             </button>
@@ -938,6 +957,7 @@ const App = () => {
           navigateTo('auth');
         }}
       />
+      <OfflineNotification />
     </>
   );
 
@@ -948,6 +968,38 @@ const App = () => {
         <Navbar />
         <AuthPage onAuthSuccess={() => navigateTo('home')} />
       </div>
+    );
+  }
+
+  if (currentView === 'calorie-tracker') {
+    if (!isAuthenticated) {
+      return (
+        <>
+          <Navbar />
+          <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-6 pt-32">
+            <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-8 max-w-md w-full text-center shadow-2xl">
+              <div className="text-6xl mb-4">🔥</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Login Required</h2>
+              <p className="text-gray-600 mb-6">Please login to track your calories and nutrition</p>
+              <button
+                onClick={() => navigateTo('auth')}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-3 rounded-xl font-bold hover:shadow-lg transition-all"
+              >
+                Go to Login
+              </button>
+            </div>
+          </div>
+        </>
+      );
+    }
+    return (
+      <>
+        <Navbar />
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 pt-20">
+          <CalorieTracker />
+        </div>
+        {renderRootComponents()}
+      </>
     );
   }
 

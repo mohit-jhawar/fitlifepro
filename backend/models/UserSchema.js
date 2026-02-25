@@ -12,7 +12,9 @@ const userSchema = new mongoose.Schema({
     },
     password_hash: {
         type: String,
-        required: true
+        required: function () {
+            return this.auth_provider === 'local';
+        }
     },
     name: {
         type: String,
@@ -58,6 +60,16 @@ const userSchema = new mongoose.Schema({
     },
     last_login: {
         type: Date,
+        default: null
+    },
+    auth_provider: {
+        type: String,
+        enum: ['local', 'google'],
+        default: 'local'
+    },
+    google_id: {
+        type: String,
+        sparse: true,
         default: null
     }
 }, {

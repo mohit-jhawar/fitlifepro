@@ -11,6 +11,7 @@ const planRoutes = require('./routes/plans');
 const workoutRoutes = require('./routes/workouts');
 const feedbackRoutes = require('./routes/feedback');
 const aiRoutes = require('./routes/ai');
+const nutritionRoutes = require('./routes/nutrition');
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use('/api/plans', planRoutes);
 app.use('/api/workouts', workoutRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/nutrition', nutritionRoutes);
 
 // 404 handler
 app.use((req, res) => {
