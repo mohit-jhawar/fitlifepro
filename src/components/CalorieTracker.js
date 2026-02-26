@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, X, Droplets, ChevronLeft, ChevronRight, Flame, Droplet, Coffee, Sun, Utensils, Apple, BarChart2, RefreshCw, AlertCircle } from 'lucide-react';
-import { nutritionAPI } from '../services/api';
+import { Search, Plus, X, Droplets, ChevronLeft, ChevronRight, Flame, Droplet, Coffee, Sun, Utensils, Apple, BarChart2, RefreshCw, AlertCircle, Camera, Loader2, Sparkles } from 'lucide-react';
+import { nutritionAPI, aiAPI } from '../services/api';
 
 // ─────────────────────────────────────────────
 // Local Generic Foods Database (per 100g unless noted)
@@ -128,6 +128,128 @@ const searchLocalFoods = (q) => {
 const GOALS_KEY = 'fitlife_nutrition_goals';
 
 // ─────────────────────────────────────────────
+// AI Photo Upload Tab (New)
+// ─────────────────────────────────────────────
+const AIPhotoTab = ({ onAdd, mealLabel }) => {
+    const [image, setImage] = useState(null);
+    const [preview, setPreview] = useState(null);
+    const [estimating, setEstimating] = useState(false);
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState('');
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64 = reader.result.split(',')[1];
+            setImage({ base64, mimeType: file.type });
+            setPreview(reader.result);
+            setResult(null);
+            setError('');
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleEstimate = async () => {
+        if (!image) return;
+        setEstimating(true);
+        setError('');
+        try {
+            const res = await aiAPI.estimateCalories(image.base64, image.mimeType);
+            if (res.success) {
+                setResult(res.data);
+            } else {
+                setError('Failed to get estimation. Please try again.');
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || 'Error connecting to AI service.');
+        }
+        setEstimating(false);
+    };
+
+    return (
+        <div className="space-y-4">
+            {!preview ? (
+                <div className="flex flex-col items-center justify-center border-2 border-dashed border-purple-500/20 rounded-3xl p-12 hover:bg-purple-500/5 transition-all text-center group cursor-pointer relative bg-black/20">
+                    <input type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-4 rounded-2xl mb-4 shadow-lg shadow-purple-900/20 group-hover:scale-110 transition-transform">
+                        <Camera className="w-8 h-8 text-white" />
+                    </div>
+                    <p className="text-white font-bold text-lg">Snap Your Meal</p>
+                    <p className="text-indigo-300/60 text-sm mt-1">Our AI Coach will estimate the macros instantly</p>
+                </div>
+            ) : (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="relative rounded-3xl overflow-hidden border border-purple-500/30 aspect-video bg-black/40 shadow-2xl">
+                        <img src={preview} alt="Meal preview" className="w-full h-full object-contain" />
+                        <button onClick={() => { setPreview(null); setImage(null); setResult(null); }} className="absolute top-4 right-4 bg-black/60 backdrop-blur-md text-white p-2 rounded-full hover:bg-black/80 transition-all border border-white/10"><X className="w-5 h-5" /></button>
+                    </div>
+
+                    {!result && (
+                        <button onClick={handleEstimate} disabled={estimating} className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white py-4 rounded-2xl font-bold text-base shadow-xl transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50">
+                            {estimating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5 text-yellow-400" />}
+                            {estimating ? 'AI Coach is analyzing...' : 'Estimate Calories with AI'}
+                        </button>
+                    )}
+
+                    {error && (
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-red-400 text-sm text-center animate-shake">
+                            {error}
+                        </div>
+                    )}
+
+                    {result && (
+                        <div className="bg-white/5 backdrop-blur-md border border-purple-500/30 rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-500">
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                                        <p className="text-[10px] text-indigo-300 font-black uppercase tracking-[0.2em]">AI Protocol Analysis</p>
+                                    </div>
+                                    <h4 className="font-black text-white text-2xl tracking-tight">{result.food_name}</h4>
+                                </div>
+                                <div className="bg-gradient-to-br from-orange-500 to-red-600 px-4 py-2 rounded-2xl shadow-lg ring-1 ring-white/20">
+                                    <span className="text-white font-black text-lg">{result.calories} <span className="text-xs opacity-80 uppercase">kcal</span></span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3 mb-6">
+                                {[
+                                    { icon: '🥩', val: result.protein, label: 'Protein', color: 'text-red-400', bg: 'bg-red-400/10' },
+                                    { icon: '🌾', val: result.carbs, label: 'Carbs', color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+                                    { icon: '🧈', val: result.fat, label: 'Fat', color: 'text-blue-400', bg: 'bg-blue-400/10' }
+                                ].map((m) => (
+                                    <div key={m.label} className={`${m.bg} border border-white/5 rounded-2xl p-3 text-center transition-transform hover:scale-105`}>
+                                        <div className="text-base mb-1">{m.icon}</div>
+                                        <div className={`font-black text-lg text-white leading-none`}>{m.val}g</div>
+                                        <div className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${m.color} opacity-80`}>{m.label}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button onClick={() => onAdd({
+                                name: result.food_name,
+                                brand: '🤖 AI Coach Estimate',
+                                quantity: 0,
+                                calories: result.calories,
+                                protein: result.protein,
+                                carbs: result.carbs,
+                                fat: result.fat,
+                                fiber: 0
+                            })} className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-emerald-900/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                                <Plus className="w-5 h-5" /> Confirm & Log Meal
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ─────────────────────────────────────────────
 // Goals Editor Modal
 // ─────────────────────────────────────────────
 const GoalsEditor = ({ goals, onSave, onClose }) => {
@@ -218,25 +340,46 @@ const FoodSearchModal = ({ mealType, mealLabel, onAdd, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[92vh]">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-start justify-center p-4 overflow-y-auto">
+            <div className="bg-gradient-to-br from-slate-900 via-purple-900/40 to-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl border border-purple-500/30 flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300 my-4 sm:my-8 max-h-none">
+
                 {/* Header */}
-                <div className="px-5 py-4 flex items-center justify-between border-b border-white/10">
-                    <div>
-                        <h3 className="text-white font-bold text-lg">Add to {mealLabel}</h3>
-                        <p className="text-white/50 text-xs">Search millions of foods</p>
+                <div className="p-6 border-b border-white/10 bg-black/40 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 rounded-2xl shadow-lg ring-1 ring-white/20">
+                            <Plus className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-white font-black text-2xl tracking-tight">Add to {mealLabel}</h3>
+                            <p className="text-purple-300/60 text-xs font-bold uppercase tracking-widest">Macro Protocol Initiation</p>
+                        </div>
                     </div>
-                    <button onClick={onClose} className="text-white/50 hover:text-white p-1 transition-colors"><X className="w-5 h-5" /></button>
+                    <button onClick={onClose} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-2xl transition-all text-white border border-white/10">
+                        <X className="w-6 h-6" />
+                    </button>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-white/10">
-                    <button onClick={() => setTab('search')} className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'search' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-white/50 hover:text-white'}`}>🔍 Search</button>
-                    <button onClick={() => setTab('custom')} className={`flex-1 py-3 text-sm font-semibold transition-colors ${tab === 'custom' ? 'text-purple-400 border-b-2 border-purple-400' : 'text-white/50 hover:text-white'}`}>✏️ Custom</button>
+                <div className="flex p-2 bg-black/20 border-b border-white/10 gap-2">
+                    {[
+                        { id: 'search', icon: '🔍', label: 'Search' },
+                        { id: 'ai', icon: '🤖', label: 'AI Photo' },
+                        { id: 'custom', icon: '✏️', label: 'Custom' }
+                    ].map(t => (
+                        <button
+                            key={t.id}
+                            onClick={() => setTab(t.id)}
+                            className={`flex-1 py-3.5 rounded-[1.25rem] text-sm font-black tracking-wide transition-all duration-300 flex items-center justify-center gap-2 ${tab === t.id ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-900/40' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                        >
+                            <span className="text-lg">{t.icon}</span> {t.label}
+                        </button>
+                    ))}
                 </div>
 
-                <div className="overflow-y-auto flex-1 p-4">
-                    {tab === 'search' ? (
+                <div className="overflow-y-auto flex-1 p-6 custom-scrollbar">
+                    {tab === 'ai' ? (
+                        <AIPhotoTab onAdd={onAdd} mealLabel={mealLabel} />
+                    ) : tab === 'search' ? (
                         <>
                             <div className="flex gap-2 mb-3">
                                 <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchFood()}
@@ -324,30 +467,38 @@ const FoodSearchModal = ({ mealType, mealLabel, onAdd, onClose }) => {
 // ─────────────────────────────────────────────
 const CalorieRing = ({ consumed, goal }) => {
     const pct = Math.min(consumed / goal, 1);
-    const r = 54, cx = 64, cy = 64;
+    const r = 60, cx = 72, cy = 72;
     const circumference = 2 * Math.PI * r;
     const isOver = consumed > goal;
+    const ringColor = isOver ? '#f87171' : pct > 0.85 ? '#fb923c' : '#a855f7';
     return (
         <div className="flex flex-col items-center">
-            <div className="relative w-32 h-32">
-                <svg width="128" height="128" className="-rotate-90">
-                    <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="10" />
+            <div className="relative w-36 h-36">
+                <svg width="144" height="144" className="-rotate-90">
+                    <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="12" />
                     <circle cx={cx} cy={cy} r={r} fill="none"
-                        stroke={isOver ? '#f87171' : '#a855f7'}
-                        strokeWidth="10"
+                        stroke={ringColor}
+                        strokeWidth="12"
                         strokeDasharray={`${circumference * pct} ${circumference}`}
                         strokeLinecap="round"
-                        style={{ transition: 'stroke-dasharray 0.6s ease', filter: `drop-shadow(0 0 6px ${isOver ? '#f87171' : '#a855f7'})` }}
+                        style={{ transition: 'stroke-dasharray 0.8s cubic-bezier(.4,0,.2,1)', filter: `drop-shadow(0 0 10px ${ringColor}88)` }}
                     />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className={`text-xl font-extrabold text-white`}>{consumed}</span>
-                    <span className="text-[10px] text-white/50 font-medium">kcal eaten</span>
+                    <span className="text-3xl font-black text-white tracking-tight">{consumed}</span>
+                    <span className="text-[11px] text-white/40 font-semibold uppercase tracking-widest">kcal</span>
                 </div>
             </div>
-            <div className="mt-2 flex gap-5 text-center text-xs">
-                <div><p className="text-white/40">Goal</p><p className="font-bold text-white">{goal}</p></div>
-                <div><p className="text-white/40">{isOver ? 'Over' : 'Left'}</p><p className={`font-bold ${isOver ? 'text-red-400' : 'text-green-400'}`}>{Math.abs(goal - consumed)}</p></div>
+            <div className="mt-3 flex gap-6 text-center">
+                <div>
+                    <p className="text-[10px] text-white/30 uppercase tracking-wider font-bold">Goal</p>
+                    <p className="font-black text-white text-sm">{goal}</p>
+                </div>
+                <div className="w-px bg-white/10" />
+                <div>
+                    <p className="text-[10px] text-white/30 uppercase tracking-wider font-bold">{isOver ? 'Over' : 'Left'}</p>
+                    <p className={`font-black text-sm ${isOver ? 'text-red-400' : 'text-emerald-400'}`}>{Math.abs(goal - consumed)}</p>
+                </div>
             </div>
         </div>
     );
@@ -356,16 +507,19 @@ const CalorieRing = ({ consumed, goal }) => {
 // ─────────────────────────────────────────────
 // Macro Bar (dark style)
 // ─────────────────────────────────────────────
-const MacroBar = ({ label, value, goal, color }) => {
+const MacroBar = ({ label, value, goal, color, glow }) => {
     const pct = Math.min((value / goal) * 100, 100);
     return (
         <div className="flex-1 min-w-0">
-            <div className="flex justify-between text-xs mb-1">
-                <span className="font-semibold text-white/70">{label}</span>
-                <span className="text-white/50">{value}g<span className="text-white/20">/{goal}g</span></span>
+            <div className="flex justify-between items-baseline mb-1.5">
+                <span className="font-bold text-xs text-white/70 tracking-wide">{label}</span>
+                <span className="text-xs font-black text-white">{value}<span className="text-white/30 font-medium">/{goal}g</span></span>
             </div>
-            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all duration-500 ${color}`} style={{ width: `${pct}%` }} />
+            <div className="h-2 bg-white/8 rounded-full overflow-hidden">
+                <div
+                    className={`h-full rounded-full transition-all duration-700 ${color}`}
+                    style={{ width: `${pct}%`, boxShadow: pct > 0 ? `0 0 8px ${glow}` : 'none' }}
+                />
             </div>
         </div>
     );
@@ -385,38 +539,55 @@ const mealAccents = { breakfast: 'text-orange-400', lunch: 'text-green-400', din
 const MealSection = ({ mealType, label, icon: Icon, items = [], onAdd, onRemove }) => {
     const totalCals = items.reduce((s, i) => s + i.calories, 0);
     return (
-        <div className={`bg-gradient-to-br ${mealGradients[mealType]} backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden`}>
-            <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
-                <div className="flex items-center gap-2">
-                    <Icon className={`w-4 h-4 ${mealAccents[mealType]}`} />
-                    <span className="text-white font-bold text-sm">{label}</span>
+        <div className={`bg-gradient-to-br ${mealGradients[mealType]} backdrop-blur-sm border border-white/10 rounded-3xl overflow-hidden`}>
+            <div className="px-5 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl bg-white/10 border border-white/10`}>
+                        <Icon className={`w-4 h-4 ${mealAccents[mealType]}`} />
+                    </div>
+                    <span className="text-white font-black text-sm tracking-wide">{label}</span>
                 </div>
-                <span className={`font-bold text-sm ${mealAccents[mealType]}`}>{totalCals} kcal</span>
+                <div className="flex items-center gap-3">
+                    <span className={`font-black text-sm ${totalCals > 0 ? mealAccents[mealType] : 'text-white/20'}`}>
+                        {totalCals > 0 ? `${totalCals} kcal` : '—'}
+                    </span>
+                    <button onClick={() => onAdd(mealType, label)}
+                        className={`p-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 transition-all ${mealAccents[mealType]} hover:scale-105 active:scale-95`}>
+                        <Plus className="w-4 h-4" />
+                    </button>
+                </div>
             </div>
-            <div className="px-4 py-3">
-                {items.length === 0 ? (
-                    <p className="text-white/30 text-xs text-center py-1">No foods logged yet</p>
-                ) : (
-                    <div className="space-y-2 mb-3">
+            {items.length > 0 && (
+                <div className="px-4 pb-4">
+                    <div className="bg-black/20 rounded-2xl divide-y divide-white/5 overflow-hidden">
                         {items.map((item) => (
-                            <div key={item._id} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
-                                <div className="flex-1 min-w-0 pr-2">
-                                    <p className="text-sm font-medium text-white truncate">{item.name}</p>
-                                    <p className="text-xs text-white/40">{item.quantity}g · P:{item.protein}g C:{item.carbs}g F:{item.fat}g</p>
+                            <div key={item._id} className="flex items-center justify-between px-4 py-3 group hover:bg-white/5 transition-colors">
+                                <div className="flex-1 min-w-0 pr-3">
+                                    <p className="text-sm font-semibold text-white truncate leading-tight">{item.name}</p>
+                                    <p className="text-[11px] text-white/35 mt-0.5">
+                                        {item.quantity > 0 ? `${item.quantity}g · ` : ''}P&nbsp;{item.protein}g&nbsp;&nbsp;C&nbsp;{item.carbs}g&nbsp;&nbsp;F&nbsp;{item.fat}g
+                                    </p>
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-orange-400 font-bold text-sm">{item.calories}</span>
-                                    <button onClick={() => onRemove(mealType, item._id)} className="text-white/20 hover:text-red-400 transition-colors"><X className="w-4 h-4" /></button>
+                                <div className="flex items-center gap-3 shrink-0">
+                                    <span className="text-orange-400 font-black text-sm">{item.calories}</span>
+                                    <button onClick={() => onRemove(mealType, item._id)}
+                                        className="opacity-0 group-hover:opacity-100 text-white/30 hover:text-red-400 transition-all">
+                                        <X className="w-4 h-4" />
+                                    </button>
                                 </div>
                             </div>
                         ))}
                     </div>
-                )}
-                <button onClick={() => onAdd(mealType, label)}
-                    className="w-full border border-dashed border-white/20 hover:border-purple-400/60 hover:bg-white/5 text-white/40 hover:text-purple-300 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5">
-                    <Plus className="w-3.5 h-3.5" /> Add Food
-                </button>
-            </div>
+                </div>
+            )}
+            {items.length === 0 && (
+                <div className="px-5 pb-4">
+                    <button onClick={() => onAdd(mealType, label)}
+                        className="w-full border border-dashed border-white/15 hover:border-white/30 hover:bg-white/5 text-white/25 hover:text-white/60 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                        <Plus className="w-3.5 h-3.5" /> Add Food
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
@@ -425,25 +596,34 @@ const MealSection = ({ mealType, label, icon: Icon, items = [], onAdd, onRemove 
 // Water Tracker
 // ─────────────────────────────────────────────
 const WaterTracker = ({ glasses, goal, onUpdate }) => (
-    <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-4">
-        <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-                <Droplets className="w-4 h-4 text-blue-400" />
-                <span className="font-bold text-sm text-white">Water Intake</span>
+    <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/5 backdrop-blur-sm border border-blue-500/20 rounded-3xl px-5 py-5">
+        <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-blue-500/20 border border-blue-500/20">
+                    <Droplets className="w-4 h-4 text-blue-400" />
+                </div>
+                <span className="font-black text-sm text-white tracking-wide">Hydration</span>
             </div>
-            <span className="text-blue-400 font-bold text-sm">{glasses} / {goal} glasses</span>
+            <div className="text-right">
+                <span className="text-blue-300 font-black text-lg">{glasses}</span>
+                <span className="text-blue-400/50 text-sm font-bold">/{goal}</span>
+                <p className="text-[10px] text-blue-400/50 font-bold uppercase tracking-widest">glasses</p>
+            </div>
         </div>
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-2 flex-wrap mb-4">
             {Array.from({ length: goal }).map((_, i) => (
                 <button key={i} onClick={() => onUpdate(i < glasses ? i : i + 1)}
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${i < glasses ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-white/5 text-white/20 hover:bg-blue-500/20 hover:text-blue-400 border border-white/10'}`}>
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ${i < glasses
+                            ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/40 scale-110'
+                            : 'bg-white/5 text-white/20 hover:bg-blue-500/20 hover:text-blue-400 border border-white/10 hover:scale-105'
+                        }`}>
                     <Droplet className="w-4 h-4" />
                 </button>
             ))}
         </div>
-        <div className="mt-3 h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 rounded-full transition-all duration-500 shadow-sm"
-                style={{ width: `${Math.min((glasses / goal) * 100, 100)}%` }} />
+        <div className="h-2 bg-white/8 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all duration-700"
+                style={{ width: `${Math.min((glasses / goal) * 100, 100)}%`, boxShadow: glasses > 0 ? '0 0 12px #3b82f688' : 'none' }} />
         </div>
     </div>
 );
@@ -583,21 +763,32 @@ const CalorieTracker = () => {
         <div className="min-h-screen py-8 px-4">
             <div className="max-w-2xl mx-auto space-y-4">
                 {/* Page Title */}
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="bg-orange-500/20 border border-orange-500/30 p-2.5 rounded-xl">
-                        <Flame className="w-6 h-6 text-orange-400" />
-                    </div>
-                    <div>
-                        <h1 className="text-white font-extrabold text-2xl">Calorie Tracker</h1>
-                        <p className="text-white/40 text-sm">Track your daily nutrition</p>
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-gradient-to-br from-orange-500 to-red-500 p-3 rounded-2xl shadow-lg shadow-orange-500/30 ring-1 ring-white/20">
+                            <Flame className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-white font-black text-3xl tracking-tight">Nutrition</h1>
+                            <p className="text-white/35 text-xs font-bold uppercase tracking-widest">Daily Protocol</p>
+                        </div>
                     </div>
                 </div>
 
                 {/* Date Navigator */}
-                <div className="bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between px-4 py-3">
-                    <button onClick={() => changeDate(-1)} className="text-white/60 hover:text-white p-1 transition-colors"><ChevronLeft className="w-5 h-5" /></button>
-                    <span className="text-white font-semibold text-sm">{dateLabel}</span>
-                    <button onClick={() => changeDate(1)} disabled={isToday} className="text-white/60 hover:text-white p-1 transition-colors disabled:opacity-20"><ChevronRight className="w-5 h-5" /></button>
+                <div className="bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between px-2 py-2 gap-2">
+                    <button onClick={() => changeDate(-1)}
+                        className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all border border-white/5">
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <div className="flex-1 text-center">
+                        <span className="text-white font-black text-sm">{dateLabel}</span>
+                        {isToday && <span className="ml-2 text-[10px] bg-purple-500/30 text-purple-300 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Today</span>}
+                    </div>
+                    <button onClick={() => changeDate(1)} disabled={isToday}
+                        className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all border border-white/5 disabled:opacity-20">
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
                 </div>
 
                 {/* Error State */}
@@ -617,16 +808,17 @@ const CalorieTracker = () => {
                 ) : !apiError && (
                     <>
                         {/* Summary Card */}
-                        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 flex flex-col sm:flex-row gap-6 items-center">
+                        <div className="bg-gradient-to-br from-white/5 to-purple-500/5 backdrop-blur-sm border border-white/10 rounded-3xl p-6 flex flex-col sm:flex-row gap-8 items-center shadow-xl">
                             <CalorieRing consumed={totals.calories} goal={goals.calories} />
-                            <div className="flex-1 w-full space-y-3.5">
-                                <MacroBar label="🥩 Protein" value={totals.protein} goal={goals.protein} color="bg-red-400" />
-                                <MacroBar label="🌾 Carbs" value={totals.carbs} goal={goals.carbs} color="bg-yellow-400" />
-                                <MacroBar label="🧈 Fat" value={totals.fat} goal={goals.fat} color="bg-blue-400" />
+                            <div className="flex-1 w-full space-y-4">
+                                <MacroBar label="Protein" value={totals.protein} goal={goals.protein} color="bg-gradient-to-r from-red-400 to-rose-500" glow="#f8717180" />
+                                <MacroBar label="Carbs" value={totals.carbs} goal={goals.carbs} color="bg-gradient-to-r from-yellow-400 to-amber-500" glow="#facc1580" />
+                                <MacroBar label="Fat" value={totals.fat} goal={goals.fat} color="bg-gradient-to-r from-blue-400 to-cyan-500" glow="#60a5fa80" />
                                 <button
                                     onClick={() => setEditingGoals(true)}
-                                    className="flex items-center gap-1.5 text-xs text-white/30 hover:text-purple-400 transition-colors mt-1">
-                                    <span>✏️</span> Edit Goals
+                                    className="flex items-center gap-2 text-xs text-white/25 hover:text-purple-400 transition-colors mt-1 group">
+                                    <span className="group-hover:rotate-12 transition-transform inline-block">✏️</span>
+                                    <span className="font-bold uppercase tracking-wider">Edit Goals</span>
                                 </button>
                             </div>
                         </div>
@@ -657,7 +849,8 @@ const CalorieTracker = () => {
 
             {/* Toast */}
             {toast && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 border border-white/10 text-white px-5 py-3 rounded-xl text-sm font-medium shadow-xl z-50">
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl border border-white/10 text-white px-6 py-3.5 rounded-2xl text-sm font-bold shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-4 duration-300 flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                     {toast}
                 </div>
             )}

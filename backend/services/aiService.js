@@ -1,59 +1,74 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 
-// Initialize Gemini
+// Initialize new Gemini SDK
 if (!process.env.GEMINI_API_KEY) {
-    console.error("CRITICAL ERROR: GEMINI_API_KEY is missing in environment variables.");
+    console.error("CRITICAL ERROR: GEMINI_API_KEY is missing.");
 }
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// List of models to try in order of preference
-const MODELS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"];
+// Confirmed available on this API key (from ListModels)
+const AI_MODEL = "gemini-2.5-flash";          // Primary
+const AI_MODEL_FALLBACK = "gemini-2.0-flash-lite"; // Fallback (different quota)
 
 class AIService {
     static async generateResponse(message, history = []) {
-        let lastError = null;
+        // Format history for new SDK
+        const formattedHistory = history
+            .map(msg => ({
+                role: msg.role === 'user' ? 'user' : 'model',
+                parts: [{ text: msg.content }]
+            }))
+            .filter((_, i, arr) => !(i === 0 && arr[0].role === 'model')); // strip leading model msg
 
-        for (const modelName of MODELS) {
+        const chat = ai.chats.create({
+            model: AI_MODEL,
+            history: formattedHistory,
+        });
+
+        const response = await chat.sendMessage({ message });
+        return response.text;
+    }
+
+    static async estimateCaloriesFromImage(base64Image, mimeType) {
+        const modelsToTry = [AI_MODEL, AI_MODEL_FALLBACK];
+
+        const prompt = `Analyze this meal photo and estimate its nutritional content.
+Return ONLY a raw JSON object (no markdown, no code blocks) with exactly these fields:
+{"food_name":"name of dish","calories":0,"protein":0,"carbs":0,"fat":0}`;
+
+        for (const modelName of modelsToTry) {
             try {
-                // console.log(`Attempting to generate response with model: ${modelName}`);
-                const model = genAI.getGenerativeModel({ model: modelName });
+                console.log(`AIService: Estimating with ${modelName}`);
 
-                // Sanitize history:
-                // 1. Filter out invalid roles (just in case)
-                // 2. Ensure history starts with 'user'. Gemini requires User -> Model -> User turn taking.
-                let formattedHistory = history.map(msg => ({
-                    role: msg.role === 'user' ? 'user' : 'model',
-                    parts: [{ text: msg.content }]
-                }));
-
-                // Remove leading model messages
-                while (formattedHistory.length > 0 && formattedHistory[0].role === 'model') {
-                    formattedHistory.shift();
-                }
-
-                const chat = model.startChat({
-                    history: formattedHistory,
-                    generationConfig: {
-                        maxOutputTokens: 4096,
-                    },
+                const response = await ai.models.generateContent({
+                    model: modelName,
+                    contents: [
+                        {
+                            role: "user",
+                            parts: [
+                                { text: prompt },
+                                { inlineData: { mimeType, data: base64Image } }
+                            ]
+                        }
+                    ]
                 });
 
-                const result = await chat.sendMessage(message);
-                const response = await result.response;
-                return response.text();
+                const text = response.text;
+                console.log(`AIService: Response from ${modelName}:`, text?.substring(0, 150));
+
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) throw new Error("No JSON in response");
+
+                const parsed = JSON.parse(jsonMatch[0]);
+                console.log(`AIService: ✅ Success with ${modelName}:`, parsed);
+                return parsed;
             } catch (error) {
-                console.error(`Failed with model ${modelName}:`, error.message);
-                lastError = error;
-                // Continue to next model
+                console.error(`AIService: ${modelName} failed:`, error.message);
+                // Continue to fallback
             }
         }
 
-        // If all models fail
-        console.error("All Gemini models failed.");
-        if (lastError && lastError.response) {
-            console.error("Last Gemini API Error Response:", lastError.response);
-        }
-        throw new Error("Failed to generate AI response after trying multiple models.");
+        throw new Error("Vision estimation failed. All available models returned errors.");
     }
 }
 

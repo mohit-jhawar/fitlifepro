@@ -176,6 +176,10 @@ export const aiAPI = {
     chat: async (message, history) => {
         const response = await api.post('/ai/chat', { message, history });
         return response.data;
+    },
+    estimateCalories: async (image, mimeType) => {
+        const response = await api.post('/ai/estimate-calories', { image, mimeType });
+        return response.data;
     }
 };
 

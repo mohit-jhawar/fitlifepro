@@ -8,4 +8,9 @@ const { auth } = require('../middleware/auth');
 // @access  Private
 router.post('/chat', auth, aiController.chat);
 
+// @route   POST api/ai/estimate-calories
+// @desc    Estimate calories from meal photo
+// @access  Private
+router.post('/estimate-calories', auth, aiController.estimateCalories);
+
 module.exports = router;
