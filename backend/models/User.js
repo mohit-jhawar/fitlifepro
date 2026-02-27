@@ -182,47 +182,12 @@ class User {
         };
     }
 
-    // Create password reset token
-    static async createPasswordResetToken(email) {
-        const resetToken = crypto.randomBytes(32).toString('hex');
-        const resetExpires = new Date(Date.now() + 3600000); // 1 hour
-
-        const user = await UserModel.findOneAndUpdate(
-            { email },
-            {
-                password_reset_token: resetToken,
-                password_reset_expires: resetExpires
-            },
-            { new: true }
-        ).lean();
-
-        if (!user) return null;
-
-        return {
-            user: {
-                id: user._id,
-                email: user.email,
-                name: user.name
-            },
-            resetToken
-        };
-    }
-
-    // Reset password
-    static async resetPassword(token, newPassword) {
-        const user = await UserModel.findOne({
-            password_reset_token: token,
-            password_reset_expires: { $gt: new Date() }
-        });
-
-        if (!user) {
-            throw new Error('Invalid or expired reset token');
-        }
-
+    // Reset password using email directly after OTP verification
+    static async changePasswordAfterReset(email, newPassword) {
         const hashedPassword = await bcrypt.hash(newPassword, 12);
 
-        const updatedUser = await UserModel.findByIdAndUpdate(
-            user._id,
+        const updatedUser = await UserModel.findOneAndUpdate(
+            { email },
             {
                 password_hash: hashedPassword,
                 password_reset_token: null,
@@ -230,6 +195,10 @@ class User {
             },
             { new: true }
         ).lean();
+
+        if (!updatedUser) {
+            throw new Error('User not found');
+        }
 
         return {
             id: updatedUser._id,

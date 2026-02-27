@@ -113,9 +113,16 @@ const validateEmail = [
 
 // Password reset validation
 const validatePasswordReset = [
-    body('token')
+    body('email')
+        .isEmail()
+        .normalizeEmail()
+        .withMessage('Please provide a valid email address'),
+
+    body('otp')
         .notEmpty()
-        .withMessage('Reset token is required'),
+        .withMessage('OTP is required')
+        .isLength({ min: 6, max: 6 })
+        .withMessage('OTP must be exactly 6 characters'),
 
     body('newPassword')
         .isLength({ min: 8 })

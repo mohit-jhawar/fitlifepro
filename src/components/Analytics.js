@@ -134,8 +134,9 @@ const Analytics = ({ workoutSessions, onBack }) => {
 
             // Calculate intensity based on total workout time (in minutes)
             let intensity = 0;
+            let totalMinutes = 0;
             if (dayWorkouts.length > 0) {
-                const totalMinutes = dayWorkouts.reduce((sum, w) => sum + ((w.totalTime || 0) / 60), 0);
+                totalMinutes = dayWorkouts.reduce((sum, w) => sum + ((w.totalTime || 0) / 60), 0);
 
                 // Intensity levels based on total workout time
                 if (totalMinutes >= 90) intensity = 4;        // 90+ min = max intensity
@@ -144,7 +145,7 @@ const Analytics = ({ workoutSessions, onBack }) => {
                 else if (totalMinutes > 0) intensity = 1;     // 1-29 min = low
             }
 
-            heatmap.push({ date, dateStr, intensity, count: dayWorkouts.length });
+            heatmap.push({ date, dateStr, intensity, count: dayWorkouts.length, totalMinutes });
         }
 
         return heatmap;
@@ -153,7 +154,7 @@ const Analytics = ({ workoutSessions, onBack }) => {
     // Unauthenticated state (after all hooks)
     if (!isAuthenticated) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 pt-24 p-6">
+            <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10">
                 <div className="max-w-4xl mx-auto">
                     <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-12 text-center shadow-2xl">
                         <div className="text-6xl mb-6">📊</div>
@@ -175,24 +176,24 @@ const Analytics = ({ workoutSessions, onBack }) => {
     const maxChartValue = Math.max(...chartData.map(d => d.minutes), 1);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 pt-24 pb-6 sm:pb-8 px-3 sm:px-6">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10">
             <div className="max-w-7xl mx-auto">
 
-                {/* Header */}
-                <div className="mb-6 sm:mb-8">
-                    <div className="flex items-center gap-3 sm:gap-4 mb-2 sm:mb-3">
-                        <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl">
+                {/* Page Header */}
+                <div className="mb-8">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                        <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl shadow-lg">
                             <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-2xl sm:text-4xl font-bold text-white">Analytics Dashboard</h1>
-                            <p className="text-sm sm:text-base text-gray-300 mt-0.5 sm:mt-1">Track your fitness journey and celebrate your progress</p>
+                            <h1 className="text-2xl sm:text-3xl font-bold text-white">Analytics Dashboard</h1>
+                            <p className="text-sm text-gray-300 mt-0.5">Track your fitness journey and celebrate your progress</p>
                         </div>
                     </div>
                 </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-4 gap-2 sm:gap-4 mb-6 sm:mb-8">
+                {/* Stats Grid — 4 cols on desktop */}
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
                     {/* Current Streak */}
                     <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-xl sm:rounded-2xl p-2 sm:p-6 shadow-xl hover:scale-105 transition-transform cursor-pointer flex flex-col sm:block items-center justify-center sm:justify-start">
                         <div className="flex items-start justify-between w-full mb-1 sm:mb-4">
@@ -243,11 +244,11 @@ const Analytics = ({ workoutSessions, onBack }) => {
                 </div>
 
                 {/* Charts Row */}
-                <div className="grid lg:grid-cols-2 gap-6 mb-6">
+                <div className="grid lg:grid-cols-2 gap-6 mb-12">
                     {/* Weekly Activity Chart */}
-                    <div className="bg-white/5 backdrop-blur-xl rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-white/10 shadow-2xl h-full flex flex-col min-h-[300px] sm:min-h-0">
-                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center gap-2">
-                            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
+                    <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg h-full flex flex-col min-h-[300px] sm:min-h-0">
+                        <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-4 sm:mb-6 flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500" />
                             Weekly Activity
                         </h3>
                         {chartData.every(d => d.minutes === 0) ? (
@@ -274,7 +275,7 @@ const Analytics = ({ workoutSessions, onBack }) => {
                                                     )}
                                                 </div>
                                             </div>
-                                            <span className="text-[10px] sm:text-xs font-semibold text-gray-300">{day.day}</span>
+                                            <span className="text-[10px] sm:text-xs font-semibold text-gray-500">{day.day}</span>
                                         </div>
                                     );
                                 })}
@@ -283,9 +284,9 @@ const Analytics = ({ workoutSessions, onBack }) => {
                     </div>
 
                     {/* Intensity Heatmap */}
-                    <div className="bg-white/5 backdrop-blur-xl rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-white/10 shadow-2xl h-full flex flex-col min-h-[300px] sm:min-h-0">
-                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center gap-2">
-                            <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400" />
+                    <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg h-full flex flex-col min-h-[300px] sm:min-h-0">
+                        <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-4 sm:mb-6 flex items-center gap-2">
+                            <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
                             Intensity Heatmap (4 Weeks)
                         </h3>
                         <div className="grid grid-cols-7 gap-1.5 sm:gap-2 w-full mt-auto content-end">
@@ -296,21 +297,21 @@ const Analytics = ({ workoutSessions, onBack }) => {
                             ))}
                             {heatmapData.map((cell, idx) => {
                                 const colors = [
-                                    'bg-gray-700/50',
-                                    'bg-green-500/30',
-                                    'bg-green-500/60',
-                                    'bg-green-500',
-                                    'bg-orange-500'
+                                    'bg-gray-100 border border-gray-200',
+                                    'bg-emerald-100 border border-emerald-200',
+                                    'bg-emerald-300 border border-emerald-400',
+                                    'bg-emerald-500 border border-emerald-600',
+                                    'bg-orange-500 border border-orange-600'
                                 ];
                                 return (
                                     <div
                                         key={idx}
-                                        className={`aspect-square rounded sm:rounded-lg transition-all cursor-pointer hover:scale-110 hover:shadow-lg group relative ${cell.intensity === 0 ? 'bg-slate-700/50' : colors[cell.intensity]
-                                            } border border-white/5`}
-                                        title={`${cell.date.toLocaleDateString()}: ${cell.count} workout${cell.count !== 1 ? 's' : ''}`}
+                                        className={`aspect-square rounded sm:rounded-lg transition-all cursor-pointer hover:scale-110 hover:shadow-lg group relative ${cell.intensity === 0 ? 'bg-gray-100 border border-gray-200' : colors[cell.intensity]
+                                            }`}
+                                        title={`${cell.date.toLocaleDateString()}: ${Math.floor(cell.totalMinutes)} min${cell.count > 0 ? ` across ${cell.count} workout${cell.count !== 1 ? 's' : ''}` : ''}`}
                                     >
                                         <div className="absolute hidden group-hover:block bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs rounded whitespace-nowrap z-10 bg-gray-900 text-white border border-white/20">
-                                            {cell.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}<br />{cell.count} workout{cell.count !== 1 ? 's' : ''}
+                                            {cell.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}<br />{Math.floor(cell.totalMinutes)} min
                                         </div>
                                     </div>
                                 );
@@ -320,11 +321,11 @@ const Analytics = ({ workoutSessions, onBack }) => {
                             <span>Less</span>
                             {[0, 1, 2, 3, 4].map(i => (
                                 <div key={i} className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded ${[
-                                    'bg-slate-700/50',
-                                    'bg-green-500/30',
-                                    'bg-green-500/60',
-                                    'bg-yellow-500/70',
-                                    'bg-orange-500'
+                                    'bg-gray-100 border border-gray-200',
+                                    'bg-emerald-100 border border-emerald-200',
+                                    'bg-emerald-300 border border-emerald-400',
+                                    'bg-emerald-500 border border-emerald-600',
+                                    'bg-orange-500 border border-orange-600'
                                 ][i]}`}></div>
                             ))}
                             <span>More</span>
@@ -333,28 +334,28 @@ const Analytics = ({ workoutSessions, onBack }) => {
                 </div>
 
                 {/* Summary Stats */}
-                <div className="bg-white/5 backdrop-blur-xl rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-white/10 shadow-2xl mb-6 sm:mb-8">
-                    <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Overall Summary</h3>
-                    <div className="grid grid-cols-3 gap-3 sm:gap-6">
+                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg mb-12">
+                    <h3 className="text-xl font-bold text-gray-900 mb-6">Overall Summary</h3>
+                    <div className="grid grid-cols-3 gap-6">
                         <div className="text-center">
-                            <p className="text-gray-400 text-xs sm:text-sm mb-1 sm:mb-2">Total Workouts</p>
-                            <p className="text-3xl sm:text-4xl font-bold text-purple-400">{stats.totalWorkouts}</p>
+                            <p className="text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">Total Workouts</p>
+                            <p className="text-3xl sm:text-4xl font-bold text-purple-600">{stats.totalWorkouts}</p>
                         </div>
                         <div className="text-center">
-                            <p className="text-gray-400 text-xs sm:text-sm mb-1 sm:mb-2">Total Time</p>
-                            <p className="text-3xl sm:text-4xl font-bold text-cyan-400">{Math.floor(stats.totalMinutes / 60)}h</p>
+                            <p className="text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">Total Time</p>
+                            <p className="text-3xl sm:text-4xl font-bold text-cyan-600">{Math.floor(stats.totalMinutes / 60)}h</p>
                         </div>
                         <div className="text-center">
-                            <p className="text-gray-400 text-xs sm:text-sm mb-1 sm:mb-2">This Month</p>
-                            <p className="text-3xl sm:text-4xl font-bold text-green-400">{stats.thisMonth}</p>
+                            <p className="text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">This Month</p>
+                            <p className="text-3xl sm:text-4xl font-bold text-emerald-600">{stats.thisMonth}</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Workout History */}
-                <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/10">
-                    <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                        <Dumbbell className="w-5 h-5 text-purple-400" />
+                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg">
+                    <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                        <Dumbbell className="w-5 h-5 text-purple-500" />
                         Recent Workouts
                     </h3>
                     {workoutSessions.length === 0 ? (
@@ -363,29 +364,29 @@ const Analytics = ({ workoutSessions, onBack }) => {
                             <p className="text-gray-500 text-sm mt-2">Start training to build your history!</p>
                         </div>
                     ) : (
-                        <div className="space-y-2 sm:space-y-3 max-h-80 sm:max-h-96 overflow-y-auto pr-1 sm:pr-2">
+                        <div className="space-y-3 max-h-96 overflow-y-auto pr-1 sm:pr-2">
                             {workoutSessions.slice().reverse().slice(0, 10).map((session, index) => (
-                                <div key={index} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:bg-white/10 transition-all border border-white/10">
+                                <div key={index} className="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-all border border-gray-200">
                                     <div className="flex items-center justify-between gap-2">
                                         <div className="flex items-center gap-1.5 sm:gap-2">
                                             <div className="bg-gradient-to-br from-purple-500 to-pink-500 w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center">
                                                 <Dumbbell className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                             </div>
                                             <div>
-                                                <h4 className="font-semibold text-white text-sm sm:text-base">{session.exerciseName}</h4>
-                                                <p className="text-xs text-gray-400">
+                                                <h4 className="font-semibold text-gray-900 text-sm sm:text-base">{session.exerciseName}</h4>
+                                                <p className="text-xs text-gray-500">
                                                     {new Date(session.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                 </p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-3 sm:gap-4">
                                             <div className="text-right">
-                                                <p className="text-xs text-gray-400">Duration</p>
-                                                <p className="font-semibold text-white text-sm sm:text-base">{Math.floor(session.totalTime / 60)}m {session.totalTime % 60}s</p>
+                                                <p className="text-xs text-gray-500">Duration</p>
+                                                <p className="font-semibold text-gray-900 text-sm sm:text-base">{Math.floor(session.totalTime / 60)}m {session.totalTime % 60}s</p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-xs text-gray-400">Sets</p>
-                                                <p className="font-semibold text-white text-sm sm:text-base">{session.setsCompleted}</p>
+                                                <p className="text-xs text-gray-500">Sets</p>
+                                                <p className="font-semibold text-gray-900 text-sm sm:text-base">{session.setsCompleted}</p>
                                             </div>
                                         </div>
                                     </div>

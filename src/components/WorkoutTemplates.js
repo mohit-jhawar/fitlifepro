@@ -26,7 +26,7 @@ const WorkoutTemplates = ({ onBack, onSelectTemplate }) => {
 
     if (showPreview && selectedTemplate) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6">
+            <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10">
                 <div className="max-w-4xl mx-auto">
                     {/* Back Button */}
                     <button
@@ -38,7 +38,7 @@ const WorkoutTemplates = ({ onBack, onSelectTemplate }) => {
                     </button>
 
                     {/* Template Header */}
-                    <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-5 sm:p-8 shadow-2xl mb-6">
+                    <div className="bg-white/95 backdrop-blur-xl rounded-2xl p-6 shadow-lg mb-6">
                         <div className="flex items-start justify-between mb-6">
                             <div>
                                 <div className="flex items-center gap-3 mb-3">
@@ -55,7 +55,7 @@ const WorkoutTemplates = ({ onBack, onSelectTemplate }) => {
                         </div>
 
                         {/* Template Stats */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
                             <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-2xl">
                                 <Clock className="w-6 h-6 text-purple-600 mb-2" />
                                 <p className="text-sm text-gray-600">Duration</p>
@@ -106,7 +106,7 @@ const WorkoutTemplates = ({ onBack, onSelectTemplate }) => {
                     {/* Workout Details */}
                     <div className="space-y-4">
                         {selectedTemplate.workouts.map((workout, workoutIndex) => (
-                            <div key={workoutIndex} className="bg-white/95 backdrop-blur-xl rounded-2xl p-5 sm:p-6 shadow-xl">
+                            <div key={workoutIndex} className="bg-white/95 backdrop-blur-xl rounded-2xl p-6 shadow-lg">
                                 <h3 className="text-xl font-bold text-gray-900 mb-4">{workout.day}</h3>
                                 <p className="text-purple-600 font-semibold mb-4">{workout.focus}</p>
 
@@ -147,14 +147,14 @@ const WorkoutTemplates = ({ onBack, onSelectTemplate }) => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 pt-16 sm:pt-20 lg:pt-28 p-3 sm:p-6">
+        <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10">
             <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="text-center mb-6 sm:mb-8">
-                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-2 whitespace-nowrap overflow-hidden text-ellipsis">
+                {/* Page Header */}
+                <div className="mb-8">
+                    <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
                         Workout Templates
                     </h1>
-                    <p className="text-base sm:text-xl text-white/90">
+                    <p className="text-sm sm:text-base text-white/70">
                         Choose a pre-built program and start training today
                     </p>
                 </div>

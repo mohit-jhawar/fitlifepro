@@ -178,6 +178,164 @@ FitLife Pro - Get fit. Stay healthy. Live better.
 };
 
 /**
+ * Send Password Reset OTP email using Brevo
+ * @param {string} toEmail - Recipient email address
+ * @param {string} toName - Recipient name
+ * @param {string} otp - 6-digit OTP code
+ */
+const sendPasswordResetOTPEmail = async (toEmail, toName, otp) => {
+    try {
+        const api = initializeBrevo();
+
+        const sendSmtpEmail = new brevo.SendSmtpEmail();
+
+        sendSmtpEmail.sender = {
+            name: process.env.EMAIL_FROM_NAME || 'FitLife Pro',
+            email: process.env.EMAIL_FROM || 'noreply@fitlifepro.com'
+        };
+
+        sendSmtpEmail.to = [{
+            email: toEmail,
+            name: toName
+        }];
+
+        sendSmtpEmail.subject = 'FitLife Pro Password Reset Request';
+
+        // HTML Email Template
+        sendSmtpEmail.htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .content {
+            background: white;
+            padding: 40px 30px;
+            border-radius: 15px;
+            text-align: center;
+        }
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+        .otp-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            padding: 20px;
+            border-radius: 10px;
+            letter-spacing: 8px;
+            margin: 30px 0;
+            display: inline-block;
+        }
+        .message {
+            color: #666;
+            font-size: 16px;
+            margin: 20px 0;
+        }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px;
+            margin: 20px 0;
+            border-radius: 5px;
+            color: #856404;
+            font-size: 14px;
+        }
+        .footer {
+            color: white;
+            margin-top: 30px;
+            font-size: 14px;
+            text-align: center;
+        }
+        .footer a {
+            color: white;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="content">
+            <div class="logo">💪 FitLife Pro</div>
+            <h1>Password Reset Request</h1>
+            <p class="message">Hi ${toName},</p>
+            <p class="message">We received a request to reset your password. Please use the OTP below to set a new password:</p>
+            
+            <div class="otp-box">${otp}</div>
+            
+            <p class="message">This OTP is valid for <strong>10 minutes</strong>.</p>
+            
+            <div class="warning">
+                ⚠️ If you didn't request a password reset, please ignore this email or contact support if you have concerns.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>🏋️ Get fit. Stay healthy. Live better.</p>
+            <p style="font-size: 12px; margin-top: 15px;">
+                This is an automated message from FitLife Pro.<br>
+                Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+        `;
+
+        // Text version for email clients that don't support HTML
+        sendSmtpEmail.textContent = `
+FitLife Pro Password Reset Request
+
+Hi ${toName},
+
+We received a request to reset your password. Please use the OTP below to set a new password:
+
+OTP: ${otp}
+
+This OTP is valid for 10 minutes.
+
+If you didn't request a password reset, please ignore this email.
+
+---
+FitLife Pro - Get fit. Stay healthy. Live better.
+        `;
+
+        const result = await api.sendTransacEmail(sendSmtpEmail);
+        console.log('✅ Password Reset Email sent successfully to:', toEmail);
+        return { success: true, messageId: result.messageId };
+
+    } catch (error) {
+        console.error('❌ Error sending password reset email:', error);
+        throw new Error('Failed to send password reset email');
+    }
+};
+
+/**
  * Send welcome email after successful verification
  */
 const sendWelcomeEmail = async (toEmail, toName) => {
@@ -320,5 +478,6 @@ module.exports = {
     generateOTP,
     sendOTPEmail,
     sendWelcomeEmail,
-    sendFeedbackEmail
+    sendFeedbackEmail,
+    sendPasswordResetOTPEmail
 };

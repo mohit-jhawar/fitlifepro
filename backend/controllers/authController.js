@@ -395,22 +395,46 @@ const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
 
-        const result = await User.createPasswordResetToken(email);
+        const user = await User.findByEmail(email);
 
-        if (!result) {
+        if (!user) {
             // Don't reveal if email exists or not for security
             return res.json({
                 success: true,
-                message: 'If an account with that email exists, a password reset link has been sent.'
+                message: 'If an account with that email exists, a password reset code has been sent.'
             });
         }
 
-        // TODO: Send password reset email with resetToken
-        console.log('Password reset token:', result.resetToken);
+        // Prevent Google-only users from resetting password
+        if (user.auth_provider === 'google' && !user.password_hash) {
+            return res.status(400).json({
+                success: false,
+                message: 'This account was created with Google. Please "Sign in with Google".'
+            });
+        }
+
+        const OTP = require('../models/OTP');
+        const { generateOTP, sendPasswordResetOTPEmail } = require('../utils/emailService');
+
+        const otp = generateOTP();
+
+        // Store OTP in database (10 minutes expiry)
+        await OTP.createOTP(email.toLowerCase(), otp, 10);
+
+        try {
+            await sendPasswordResetOTPEmail(email, user.name, otp);
+            console.log('📧 Password Reset OTP sent to:', email, '| OTP:', otp);
+        } catch (emailError) {
+            console.error('Failed to send Password Reset OTP email:', emailError);
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to send reset code. Please try again later.'
+            });
+        }
 
         res.json({
             success: true,
-            message: 'Password reset link has been sent to your email'
+            message: 'A 6-digit password reset code has been sent to your email.'
         });
     } catch (error) {
         console.error('Forgot password error:', error);
@@ -426,9 +450,19 @@ const forgotPassword = async (req, res) => {
 // @access  Public
 const resetPassword = async (req, res) => {
     try {
-        const { token, newPassword } = req.body;
+        const { email, otp, newPassword } = req.body;
 
-        await User.resetPassword(token, newPassword);
+        const OTP = require('../models/OTP');
+        const otpRecord = await OTP.verifyOTP(email.toLowerCase(), otp);
+
+        if (!otpRecord) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid or expired reset code.'
+            });
+        }
+
+        await User.changePasswordAfterReset(email.toLowerCase(), newPassword);
 
         res.json({
             success: true,
@@ -438,7 +472,7 @@ const resetPassword = async (req, res) => {
         console.error('Reset password error:', error);
         res.status(400).json({
             success: false,
-            message: error.message || 'Invalid or expired reset token'
+            message: error.message || 'Error occurred while resetting password.'
         });
     }
 };

@@ -752,8 +752,8 @@ const App = () => {
   }, [reminders, checkAndShowReminders]);
 
   const Navbar = () => (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-black/30 backdrop-blur-lg border-b border-white/10">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-1 sm:py-2">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-black/30 backdrop-blur-lg border-b border-white/10 px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto py-1 sm:py-2">
         <div className="flex justify-between items-center">
           <div className="flex items-center justify-center">
             <img
@@ -1172,8 +1172,8 @@ const App = () => {
             <AICoach onBack={() => setShowAICoach(false)} />
           )
         )}
-        <div className="pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6">
-          <div className="max-w-6xl mx-auto">
+        <div className="pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10">
+          <div className="max-w-7xl mx-auto">
             <div className={`${darkMode ? 'bg-white/10 border-white/20' : 'bg-white border-gray-200'} backdrop-blur-md rounded-3xl p-4 sm:p-6 shadow-2xl mb-4 sm:mb-6 border`}>
               <div className="flex items-start gap-3">
                 <Quote className={`w-6 h-6 sm:w-8 sm:h-8 ${darkMode ? 'text-yellow-300' : 'text-purple-600'} flex-shrink-0`} />
@@ -1519,7 +1519,7 @@ const App = () => {
         {/* Loading Overlay */}
 
 
-        <div className="relative z-10 pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6">
+        <div className="relative z-10 pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10">
           {renderRootComponents()}
           <Navbar />
           <div className="max-w-2xl mx-auto">
@@ -1663,7 +1663,7 @@ const App = () => {
     };
     const hasActiveReminders = true; // Always show reminders section for configuration
     return (
-      <div className="min-h-screen pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6" style={{ background: darkMode ? (currentPlan.type === 'workout' ? 'linear-gradient(to bottom right, #1f2937, #111827)' : 'linear-gradient(to bottom right, #059669, #047857)') : (currentPlan.type === 'workout' ? 'linear-gradient(to bottom right, #f3f4f6, #e5e7eb)' : 'linear-gradient(to bottom right, #d1fae5, #a7f3d0)') }}>
+      <div className="min-h-screen pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10" style={{ background: darkMode ? (currentPlan.type === 'workout' ? 'linear-gradient(to bottom right, #1f2937, #111827)' : 'linear-gradient(to bottom right, #059669, #047857)') : (currentPlan.type === 'workout' ? 'linear-gradient(to bottom right, #f3f4f6, #e5e7eb)' : 'linear-gradient(to bottom right, #d1fae5, #a7f3d0)') }}>
         {renderRootComponents()}
         <Navbar />
         <div className="max-w-5xl mx-auto">
@@ -2162,9 +2162,9 @@ const App = () => {
           <div className={`absolute inset-0 ${darkMode ? 'bg-slate-900/90' : 'bg-slate-100/80'} backdrop-blur-sm`}></div>
         </div>
 
-        <div className="relative z-10 pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6">
+        <div className="relative z-10 pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10">
           <Navbar />
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-7xl mx-auto">
             <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-5 sm:p-10 shadow-2xl">
               <div className="flex items-center gap-4 mb-8">
                 <div className="bg-gradient-to-br from-pink-500 to-rose-600 p-4 rounded-2xl">
@@ -2312,7 +2312,7 @@ const App = () => {
           <div className={`absolute inset-0 ${darkMode ? 'bg-purple-900/90' : 'bg-violet-900/80'} backdrop-blur-sm`}></div>
         </div>
 
-        <div className="relative z-10 pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6">
+        <div className="relative z-10 pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10">
           <Navbar />
           <div className="max-w-2xl mx-auto">
             {feedbackSubmitted && (
@@ -2374,7 +2374,7 @@ const App = () => {
           <div className={`absolute inset-0 ${darkMode ? 'bg-indigo-900/90' : 'bg-blue-900/80'} backdrop-blur-sm`}></div>
         </div>
 
-        <div className="relative z-10 pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6">
+        <div className="relative z-10 pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10">
           <Navbar />
           <div className="max-w-2xl mx-auto">
             <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-5 sm:p-10 shadow-2xl">
@@ -2531,7 +2531,7 @@ const App = () => {
     };
 
     return (
-      <div className="min-h-screen pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6" style={{ background: darkMode ? 'linear-gradient(to bottom right, #1f2937, #111827)' : 'linear-gradient(to bottom right, #f3f4f6, #e5e7eb)' }}>
+      <div className="min-h-screen pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10" style={{ background: darkMode ? 'linear-gradient(to bottom right, #1f2937, #111827)' : 'linear-gradient(to bottom right, #f3f4f6, #e5e7eb)' }}>
         <Navbar />
         <ValidationDialog />
         <div className="max-w-4xl mx-auto">
@@ -2782,7 +2782,7 @@ const App = () => {
     };
 
     return (
-      <div className="min-h-screen pt-20 sm:pt-24 lg:pt-32 p-3 sm:p-6" style={{ background: darkMode ? 'linear-gradient(to bottom right, #059669, #047857)' : 'linear-gradient(to bottom right, #d1fae5, #a7f3d0)' }}>
+      <div className="min-h-screen pt-20 sm:pt-24 lg:pt-32 px-6 lg:px-8 pb-10" style={{ background: darkMode ? 'linear-gradient(to bottom right, #059669, #047857)' : 'linear-gradient(to bottom right, #d1fae5, #a7f3d0)' }}>
         <Navbar />
         <ValidationDialog />
         <div className="max-w-4xl mx-auto">

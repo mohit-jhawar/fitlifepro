@@ -98,8 +98,8 @@ export const authAPI = {
         return response.data;
     },
 
-    resetPassword: async (token, newPassword) => {
-        const response = await api.post('/auth/reset-password', { token, newPassword });
+    resetPassword: async (email, otp, newPassword) => {
+        const response = await api.post('/auth/reset-password', { email, otp, newPassword });
         return response.data;
     },
 
