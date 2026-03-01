@@ -111,7 +111,9 @@ class User {
             last_login: user.last_login,
             weight: latestMetric?.weight || null,
             height: latestMetric?.height || null,
-            bmi: latestMetric?.bmi || null
+            bmi: latestMetric?.bmi || null,
+            target_weight: user.target_weight || null,
+            units: user.units || 'kg'
         };
     }
 
@@ -129,7 +131,7 @@ class User {
 
     // Update user profile
     static async updateProfile(userId, updates) {
-        const allowedFields = ['name', 'gender', 'date_of_birth', 'profile_picture_url'];
+        const allowedFields = ['name', 'gender', 'date_of_birth', 'profile_picture_url', 'target_weight', 'units'];
         const updateData = {};
 
         Object.keys(updates).forEach(key => {

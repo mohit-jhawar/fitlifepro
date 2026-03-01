@@ -150,3 +150,53 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
+// ─── Layer 3: Push Notifications (Weekly Performance Summary) ─────────────────
+// Receives a push payload from the backend (VAPID-signed) and shows a notification.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: 'FitLife', body: event.data ? event.data.text() : '' };
+  }
+
+  const title = data.title || 'Your FitLife Weekly Performance Report is Ready 🔥';
+  const options = {
+    body: data.body || 'See how you performed this week and what to improve.',
+    icon: '/assets/images/fitlife-logo.png',
+    badge: '/favicon.png',
+    data: { url: data.url || '/#analytics', type: 'weekly_summary' },
+    actions: [
+      { action: 'view', title: 'View Report' },
+      { action: 'dismiss', title: 'Dismiss' }
+    ],
+    requireInteraction: false,
+    tag: 'weekly-summary'   // Replaces any existing weekly summary notification
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// ─── Notification click: open app and relay message to trigger modal ───────────
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'dismiss') return;
+
+  const targetUrl = event.notification.data?.url || '/#analytics';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // If the app is already open, focus it and send a message to trigger the modal
+      for (const client of windowClients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.postMessage({ type: 'OPEN_WEEKLY_SUMMARY' });
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window at the analytics view
+      return clients.openWindow(targetUrl);
+    })
+  );
+});

@@ -32,9 +32,13 @@
 - **Calorie Scaling**: Automatically adjusted based on BMI
 
 ### 🎯 User Features
+- **🤖 AI Fitness Coach** - Gemini-powered personalized chatbot for fitness and nutrition advice
+- **🍎 Calorie Tracker** - Log meals and track daily macros and calories effectively
+- **📱 Offline Capabilities (PWA)** - App works offline with cached plans and IndexedDB integration
+- **📅 Smart Reminders** - Custom push notifications for workouts, meals, and hydration
 - **Save Plans** - Store your favorite workout and diet plans
 - **Workout Timer** - Built-in timer for exercises
-- **Progress Analytics** - Track your fitness journey
+- **Progress Analytics & Logging** - Track your fitness journey with detailed session logging
 - **Workout Templates** - Pre-made routines for quick starts
 - **Feedback System** - Share your experience
 
@@ -59,8 +63,9 @@
 - **Express** - Web framework
 - **MongoDB** - Database
 - **Mongoose** - ODM
+- **Google Gemini API** - AI integration for Chatbot
 - **JWT** - Authentication
-- **Brevo** - Email service
+- **Brevo / Nodemailer** - Email verification & password resets
 
 ---
 
@@ -104,7 +109,8 @@
 | `/saved` | Saved plans library |
 | `/templates` | Pre-made workout templates |
 | `/timer` | Workout timer |
-| `/analytics` | Progress tracking |
+| `/analytics` | Progress tracking & visualization |
+| `/calorie-tracker` | Meal logging and macro tracking |
 
 ---
 

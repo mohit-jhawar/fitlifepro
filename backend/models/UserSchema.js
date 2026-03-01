@@ -71,6 +71,15 @@ const userSchema = new mongoose.Schema({
         type: String,
         sparse: true,
         default: null
+    },
+    target_weight: {
+        type: Number,
+        default: null
+    },
+    units: {
+        type: String,
+        enum: ['kg', 'lb'],
+        default: 'kg'
     }
 }, {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

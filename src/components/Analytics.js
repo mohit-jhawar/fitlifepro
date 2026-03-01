@@ -1,8 +1,118 @@
-import React, { useMemo } from 'react';
-import { BarChart3, TrendingUp, Clock, Calendar, Flame, Award, Dumbbell } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { BarChart3, TrendingUp, Clock, Calendar, Flame, Award, Dumbbell, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-const Analytics = ({ workoutSessions, onBack }) => {
+const ScoreChip = ({ score }) => {
+    const color =
+        score >= 80 ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+        score >= 60 ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                     'bg-red-500/20 text-red-400 border-red-500/30';
+    return (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${color}`}>
+            Score: {score}
+        </span>
+    );
+};
+
+const WeeklyReportCard = ({ summary, onOpen }) => {
+    const [expanded, setExpanded] = useState(false);
+
+    const formatRange = (start, end) => {
+        const s = new Date(start);
+        const e = new Date(end);
+        return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    };
+
+    return (
+        <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden hover:border-purple-300 transition-colors">
+            <div
+                className="p-4 cursor-pointer"
+                onClick={() => setExpanded(prev => !prev)}
+            >
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-gradient-to-br from-purple-500 to-pink-500 w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <Sparkles className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-gray-900 text-sm">{formatRange(summary.weekStartDate, summary.weekEndDate)}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                <ScoreChip score={summary.score} />
+                                {!summary.viewed && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+                                        New
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-center flex-shrink-0">
+                        <div>
+                            <p className="text-xs text-gray-500">Workouts</p>
+                            <p className="text-sm font-bold text-purple-600">{summary.workoutConsistency}%</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Macros</p>
+                            <p className="text-sm font-bold text-cyan-600">{summary.macroCompliance}%</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500">Strength</p>
+                            <p className={`text-sm font-bold ${summary.strengthImprovement >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                {summary.strengthImprovement >= 0 ? '+' : ''}{summary.strengthImprovement}%
+                            </p>
+                        </div>
+                        <button
+                            onClick={e => { e.stopPropagation(); setExpanded(prev => !prev); }}
+                            className="p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                            aria-label={expanded ? 'Collapse' : 'Expand'}
+                        >
+                            {expanded
+                                ? <ChevronUp className="w-4 h-4 text-gray-500" />
+                                : <ChevronDown className="w-4 h-4 text-gray-500" />
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {expanded && (
+                <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
+                    {summary.areasToImprove && summary.areasToImprove.length > 0 && (
+                        <div>
+                            <p className="text-xs font-semibold text-orange-600 mb-1.5 uppercase tracking-wider">Focus Areas</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {summary.areasToImprove.map((area, i) => (
+                                    <span key={i} className="text-xs px-2.5 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-full">
+                                        {area}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {summary.aiInsight && (
+                        <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                                <span className="text-xs font-semibold text-purple-600 uppercase tracking-wider">AI Insight</span>
+                            </div>
+                            <p className="text-sm text-gray-700 leading-relaxed">{summary.aiInsight}</p>
+                        </div>
+                    )}
+                    {onOpen && (
+                        <button
+                            onClick={() => onOpen(summary)}
+                            className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity"
+                        >
+                            Open Full Summary
+                        </button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const Analytics = ({ workoutSessions, onBack, weeklySummaries = [], onOpenSummary }) => {
     const { isAuthenticated } = useAuth();
 
     // Calculate streak with rest day logic
@@ -353,7 +463,7 @@ const Analytics = ({ workoutSessions, onBack }) => {
                 </div>
 
                 {/* Workout History */}
-                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg">
+                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg mb-8">
                     <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                         <Dumbbell className="w-5 h-5 text-purple-500" />
                         Recent Workouts
@@ -391,6 +501,37 @@ const Analytics = ({ workoutSessions, onBack }) => {
                                         </div>
                                     </div>
                                 </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* ── Layer 2: Weekly AI Performance Reports ────────────────── */}
+                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-2.5 rounded-xl shadow">
+                            <Sparkles className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-900">Weekly AI Performance Reports</h3>
+                            <p className="text-xs text-gray-500 mt-0.5">Generated every Sunday — tracks consistency, macros &amp; strength</p>
+                        </div>
+                    </div>
+
+                    {weeklySummaries.length === 0 ? (
+                        <div className="text-center py-10">
+                            <div className="text-4xl mb-3">📊</div>
+                            <p className="text-gray-500 font-medium">No weekly reports yet</p>
+                            <p className="text-gray-400 text-sm mt-1">Your first report will appear after your first completed week of tracking.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {weeklySummaries.map((summary) => (
+                                <WeeklyReportCard
+                                    key={summary._id}
+                                    summary={summary}
+                                    onOpen={onOpenSummary}
+                                />
                             ))}
                         </div>
                     )}

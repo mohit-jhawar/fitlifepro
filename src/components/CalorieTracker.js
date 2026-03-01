@@ -474,18 +474,19 @@ const CalorieRing = ({ consumed, goal }) => {
     return (
         <div className="flex flex-col items-center">
             <div className="relative w-36 h-36">
-                <svg width="144" height="144" className="-rotate-90">
+                <svg viewBox="0 0 144 144" className="w-full h-full -rotate-90">
                     <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="12" />
                     <circle cx={cx} cy={cy} r={r} fill="none"
                         stroke={ringColor}
                         strokeWidth="12"
-                        strokeDasharray={`${circumference * pct} ${circumference}`}
+                        strokeDasharray={circumference}
+                        strokeDashoffset={circumference - (pct * circumference)}
                         strokeLinecap="round"
-                        style={{ transition: 'stroke-dasharray 0.8s cubic-bezier(.4,0,.2,1)', filter: `drop-shadow(0 0 10px ${ringColor}88)` }}
+                        style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(.4,0,.2,1)', filter: `drop-shadow(0 0 10px ${ringColor}88)` }}
                     />
                 </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-3xl font-black text-white tracking-tight">{consumed}</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pt-2">
+                    <span className="text-3xl font-black text-white tracking-tight leading-none">{consumed}</span>
                     <span className="text-[11px] text-white/40 font-semibold uppercase tracking-widest">kcal</span>
                 </div>
             </div>
@@ -614,8 +615,8 @@ const WaterTracker = ({ glasses, goal, onUpdate }) => (
             {Array.from({ length: goal }).map((_, i) => (
                 <button key={i} onClick={() => onUpdate(i < glasses ? i : i + 1)}
                     className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ${i < glasses
-                            ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/40 scale-110'
-                            : 'bg-white/5 text-white/20 hover:bg-blue-500/20 hover:text-blue-400 border border-white/10 hover:scale-105'
+                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/40 scale-110'
+                        : 'bg-white/5 text-white/20 hover:bg-blue-500/20 hover:text-blue-400 border border-white/10 hover:scale-105'
                         }`}>
                     <Droplet className="w-4 h-4" />
                 </button>

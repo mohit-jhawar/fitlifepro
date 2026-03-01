@@ -216,4 +216,20 @@ export const nutritionAPI = {
     }
 };
 
+// Weekly Summary API
+export const weeklySummaryAPI = {
+    getLatest: async () => {
+        const response = await api.get('/weekly-summary/latest');
+        return response.data;
+    },
+    getHistory: async () => {
+        const response = await api.get('/weekly-summary/history');
+        return response.data;
+    },
+    markViewed: async (id) => {
+        const response = await api.patch(`/weekly-summary/${id}/viewed`);
+        return response.data;
+    }
+};
+
 export default api;

@@ -12,6 +12,7 @@ const workoutRoutes = require('./routes/workouts');
 const feedbackRoutes = require('./routes/feedback');
 const aiRoutes = require('./routes/ai');
 const nutritionRoutes = require('./routes/nutrition');
+const weeklySummaryRoutes = require('./routes/weeklySummary');
 
 const app = express();
 
@@ -75,6 +76,7 @@ app.use('/api/workouts', workoutRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/nutrition', nutritionRoutes);
+app.use('/api/weekly-summary', weeklySummaryRoutes);
 
 // 404 handler
 app.use((req, res) => {

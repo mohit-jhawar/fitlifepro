@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Heart, Folder, Trash2, ArrowLeft, Dumbbell, Utensils, Calendar, Quote, TrendingUp, Award, User, Home, MessageCircle, Mail, Bell, Settings, LogIn, LogOut, Clock, Zap, Youtube, BarChart3, ChevronDown, ChevronUp, Sparkles, X, Flame } from 'lucide-react';
-import { plansAPI, workoutsAPI, feedbackAPI } from './services/api';
+import { Heart, Folder, Trash2, ArrowLeft, Dumbbell, Utensils, Calendar, Quote, TrendingUp, Award, User, Home, MessageCircle, Mail, Bell, Settings, LogIn, LogOut, Clock, Zap, Youtube, BarChart3, ChevronDown, ChevronUp, Sparkles, X, Flame, BookOpen } from 'lucide-react';
+import { plansAPI, workoutsAPI, feedbackAPI, weeklySummaryAPI } from './services/api';
 
 import { getWorkoutPlan as generateWorkoutPlan, getDietPlan as generateDietPlan } from './plans';
 import { motivationalQuotes } from './quotes';
@@ -13,6 +13,9 @@ import Analytics from './components/Analytics';
 import AICoach from './components/AICoach';
 import OfflineNotification from './components/OfflineNotification';
 import CalorieTracker from './components/CalorieTracker';
+import WeeklySummaryModal from './components/WeeklySummaryModal';
+import ExerciseLibrary from './components/ExerciseLibrary';
+import ProfileSettingsView from './components/ProfileSettingsView';
 import { cachePlans, getCachedPlans, cacheWorkoutSessions, getCachedWorkoutSessions } from './utils/db';
 
 const App = () => {
@@ -58,6 +61,11 @@ const App = () => {
   const [validationDialog, setValidationDialog] = useState({ show: false, message: '' });
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [editingReminders, setEditingReminders] = useState(false);
+
+  // Weekly Summary state (Layers 1 & 2)
+  const [showWeeklySummary, setShowWeeklySummary] = useState(false);
+  const [weeklySummary, setWeeklySummary] = useState(null);
+  const [weeklySummaries, setWeeklySummaries] = useState([]);
 
   // Custom Workout Plan State
   const [customWorkout, setCustomWorkout] = useState({
@@ -348,7 +356,50 @@ const App = () => {
     setWorkoutSessions(sessions);
   }, [isAuthenticated]);
 
-  /* 
+  /**
+   * Fetch the latest weekly summary on login.
+   * If unviewed → auto-open the summary modal (Layer 1).
+   * Also populate weeklySummaries for the Analytics page (Layer 2).
+   */
+  const loadWeeklySummary = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const [latestRes, historyRes] = await Promise.all([
+        weeklySummaryAPI.getLatest(),
+        weeklySummaryAPI.getHistory()
+      ]);
+
+      if (historyRes.success) {
+        setWeeklySummaries(historyRes.summaries || []);
+      }
+
+      if (latestRes.success && latestRes.summary && !latestRes.summary.viewed) {
+        setWeeklySummary(latestRes.summary);
+        setShowWeeklySummary(true);
+      }
+    } catch (e) {
+      console.error('Failed to load weekly summary:', e);
+    }
+  }, [isAuthenticated]);
+
+  /** Close modal + mark summary as viewed via API */
+  const handleCloseWeeklySummary = async () => {
+    setShowWeeklySummary(false);
+    if (weeklySummary && !weeklySummary.viewed) {
+      try {
+        await weeklySummaryAPI.markViewed(weeklySummary._id);
+        // Update viewed flag in local history list too
+        setWeeklySummaries(prev =>
+          prev.map(s => s._id === weeklySummary._id ? { ...s, viewed: true } : s)
+        );
+        setWeeklySummary(prev => ({ ...prev, viewed: true }));
+      } catch (e) {
+        console.error('Failed to mark summary as viewed:', e);
+      }
+    }
+  };
+
+  /*
    * WORKOUT SYNC LOGIC
    * - saveWorkoutProgress: Called after every set. Syncs to DB if logged in.
    * - saveWorkoutSession: Called on "Save & Reset". Marks as completed.
@@ -688,8 +739,9 @@ const App = () => {
     if (isAuthenticated) {
       loadPlans();
       loadWorkoutSessions();
+      loadWeeklySummary();
     }
-  }, [isAuthenticated, loadPlans, loadWorkoutSessions]);
+  }, [isAuthenticated, loadPlans, loadWorkoutSessions, loadWeeklySummary]);
 
   useEffect(() => {
     loadPlans();
@@ -751,6 +803,46 @@ const App = () => {
     }
   }, [reminders, checkAndShowReminders]);
 
+  // Layer 3 — Sunday 6PM local notification trigger
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const checkSundayNotification = () => {
+      const now = new Date();
+      const isSunday = now.getDay() === 0;
+      const isEvening = now.getHours() === 18 && now.getMinutes() === 0;
+      if (!isSunday || !isEvening) return;
+
+      const lastNotifiedKey = 'weekly_summary_notified';
+      const lastNotified = localStorage.getItem(lastNotifiedKey);
+      const todayStr = now.toISOString().split('T')[0];
+      if (lastNotified === todayStr) return; // already notified today
+
+      localStorage.setItem(lastNotifiedKey, todayStr);
+      showNotification(
+        'Your FitLife Weekly Performance Report is Ready 🔥',
+        'See how you performed this week and what to improve.'
+      );
+    };
+
+    checkSundayNotification();
+    const interval = setInterval(checkSundayNotification, 60000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for SW push notification click → open weekly summary modal
+  useEffect(() => {
+    if (!navigator.serviceWorker) return;
+    const handleSWMessage = (event) => {
+      if (event.data?.type === 'OPEN_WEEKLY_SUMMARY') {
+        navigateTo('analytics');
+        loadWeeklySummary();
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handleSWMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+  }, [loadWeeklySummary]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const Navbar = () => (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-black/30 backdrop-blur-lg border-b border-white/10 px-6 lg:px-8">
       <div className="max-w-7xl mx-auto py-1 sm:py-2">
@@ -797,6 +889,9 @@ const App = () => {
             <button onClick={() => navigateTo('analytics')} className="bg-white/20 p-2.5 rounded-xl hover:bg-white/30 transition-all border border-white/30" title="Analytics">
               <BarChart3 className="w-5 h-5 text-white" />
             </button>
+            <button onClick={() => navigateTo('exercise-library')} className="bg-white/20 p-2.5 rounded-xl hover:bg-white/30 transition-all border border-white/30" title="Exercise Library">
+              <BookOpen className="w-5 h-5 text-indigo-300" />
+            </button>
             <button onClick={() => navigateTo('calorie-tracker')} className="bg-white/20 p-2.5 rounded-xl hover:bg-white/30 transition-all border border-white/30" title="Calorie Tracker">
               <Flame className="w-5 h-5 text-orange-300" />
             </button>
@@ -818,11 +913,18 @@ const App = () => {
                 </button>
 
                 {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden py-2 z-[60] animate-in fade-in zoom-in duration-200">
+                  <div className="absolute right-0 mt-2 w-52 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden py-2 z-[60] animate-in fade-in zoom-in duration-200">
                     <div className="px-4 py-3 border-b border-white/10 text-center">
                       <p className="text-gray-400 text-xs font-semibold mb-1 uppercase tracking-wider">Welcome back</p>
                       <p className="text-white font-bold truncate">Hi, {user?.name}</p>
                     </div>
+                    <button
+                      onClick={() => { navigateTo('settings'); setUserDropdownOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-200 hover:bg-white/10 transition-colors font-semibold"
+                    >
+                      <Settings className="w-4 h-4 text-purple-400" />
+                      <span>Profile Settings</span>
+                    </button>
                     <button
                       onClick={() => { logout(); setUserDropdownOpen(false); }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-red-200 hover:bg-red-500/20 transition-colors font-semibold"
@@ -891,6 +993,9 @@ const App = () => {
             <button onClick={() => { navigateTo('analytics'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
               <BarChart3 className="w-5 h-5 text-gray-300" /><span>Analytics</span>
             </button>
+            <button onClick={() => { navigateTo('exercise-library'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
+              <BookOpen className="w-5 h-5 text-indigo-300" /><span>Exercise Library</span>
+            </button>
             <button onClick={() => { navigateTo('calorie-tracker'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
               <Flame className="w-5 h-5 text-orange-400" /><span>Calorie Tracker</span>
             </button>
@@ -900,6 +1005,11 @@ const App = () => {
             <button onClick={() => { setCurrentView('home'); setShowTimer(true); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
               <Clock className="w-5 h-5 text-gray-300" /><span>Workout Timer</span>
             </button>
+            {isAuthenticated && (
+              <button onClick={() => { navigateTo('settings'); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/20 border-b border-white/20 transition-colors">
+                <Settings className="w-5 h-5 text-purple-400" /><span>Profile Settings</span>
+              </button>
+            )}
 
             {isAuthenticated ? (
               <button onClick={() => { logout(); setMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-4 text-white hover:bg-white/20 bg-red-500/30 border-t border-white/20 transition-all font-bold">
@@ -958,6 +1068,15 @@ const App = () => {
         }}
       />
       <OfflineNotification />
+      <WeeklySummaryModal
+        summary={weeklySummary}
+        isOpen={showWeeklySummary}
+        onClose={handleCloseWeeklySummary}
+        onViewReport={() => {
+          handleCloseWeeklySummary();
+          navigateTo('analytics');
+        }}
+      />
     </>
   );
 
@@ -2303,6 +2422,15 @@ const App = () => {
     );
   }
 
+  if (currentView === 'exercise-library') {
+    return (
+      <div className="min-h-screen relative">
+        {renderRootComponents()}
+        <Navbar />
+        <ExerciseLibrary />
+      </div>
+    );
+  }
 
   if (currentView === 'feedback') {
     return (
@@ -2956,11 +3084,35 @@ const App = () => {
         <Analytics
           workoutSessions={workoutSessions}
           onBack={() => navigateTo('home')}
+          weeklySummaries={weeklySummaries}
+          onOpenSummary={(summary) => {
+            setWeeklySummary(summary);
+            setShowWeeklySummary(true);
+          }}
         />
       </div>
     );
   }
 
+  if (currentView === 'exercise-library') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        {renderRootComponents()}
+        <Navbar />
+        <ExerciseLibrary />
+      </div>
+    );
+  }
+
+  if (currentView === 'settings') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/30 to-slate-900">
+        {renderRootComponents()}
+        <Navbar />
+        <ProfileSettingsView onBack={() => navigateTo('home')} />
+      </div>
+    );
+  }
 
   return null;
 };

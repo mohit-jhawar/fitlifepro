@@ -332,7 +332,9 @@ const updateProfile = async (req, res) => {
             name: req.body.name,
             gender: req.body.gender,
             date_of_birth: req.body.dateOfBirth,
-            profile_picture_url: req.body.profilePictureUrl
+            profile_picture_url: req.body.profilePictureUrl,
+            target_weight: req.body.targetWeight,
+            units: req.body.units
         };
 
         // Update core profile
