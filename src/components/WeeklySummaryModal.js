@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, TrendingUp, Dumbbell, Utensils, Sparkles, BarChart3, ChevronRight, Activity, Target, Brain } from 'lucide-react';
+import { X, TrendingUp, Dumbbell, Utensils, BarChart3, ChevronRight, Activity, Target, Brain } from 'lucide-react';
 
 const ScoreRing = ({ score }) => {
     const radius = 46;
