@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ArrowLeft, Camera, Eye, EyeOff, ChevronDown, Check, AlertCircle, User, Scale, Lock, Shield, Pencil, Zap, Target, Activity } from 'lucide-react';
+import { Camera, Eye, EyeOff, ChevronDown, Check, AlertCircle, User, Scale, Lock, Shield, Pencil, Zap, Target, Activity } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const GENDER_OPTIONS = [
