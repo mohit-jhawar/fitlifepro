@@ -25,6 +25,17 @@ const calcCalorieGoal = (user) => {
     return Math.round(bmr * 1.55);
 };
 
+// Helper: build the goals object from user profile (with BMR fallback)
+const getUserGoals = (user) => {
+    const bmrCalorie = calcCalorieGoal(user);
+    return {
+        calories: user.calorie_goal || bmrCalorie,
+        protein: user.protein_goal || 150,
+        carbs: user.carbs_goal || 250,
+        fat: user.fat_goal || 65
+    };
+};
+
 // @desc   Get daily nutrition log
 // @route  GET /api/nutrition/daily?date=YYYY-MM-DD
 // @access Private
@@ -32,13 +43,18 @@ const getDailyLog = async (req, res) => {
     try {
         const dateStr = toDateStr(req.query.date);
         const log = await MealLog.getDailyLog(req.user.id, dateStr);
-        const calorieGoal = calcCalorieGoal(req.user);
+        const userGoals = getUserGoals(req.user);
 
         res.json({
             success: true,
             data: {
                 ...log,
-                calorie_goal: log.calorie_goal || calorieGoal
+                // Always use the user-level goals (not the per-day log goals)
+                calorie_goal: userGoals.calories,
+                protein_goal: userGoals.protein,
+                carbs_goal: userGoals.carbs,
+                fat_goal: userGoals.fat,
+                goals: userGoals
             }
         });
     } catch (error) {
@@ -59,10 +75,19 @@ const addFoodItem = async (req, res) => {
         }
 
         const dateStr = toDateStr(date);
-        const userGoals = goals || { calories: calcCalorieGoal(req.user), protein: 150, carbs: 250, fat: 65 };
-        const log = await MealLog.addFoodItem(req.user.id, dateStr, meal_type, food, userGoals);
+        // Use user-level goals as the authoritative source
+        const userGoals = getUserGoals(req.user);
+        const effectiveGoals = goals || userGoals;
+        const log = await MealLog.addFoodItem(req.user.id, dateStr, meal_type, food, effectiveGoals);
 
-        res.json({ success: true, data: log });
+        // Return with user-level goals
+        res.json({
+            success: true,
+            data: {
+                ...log,
+                goals: userGoals
+            }
+        });
     } catch (error) {
         console.error('addFoodItem error:', error);
         res.status(500).json({ success: false, message: error.message || 'Failed to add food item' });
@@ -82,8 +107,15 @@ const removeFoodItem = async (req, res) => {
 
         const dateStr = toDateStr(date);
         const log = await MealLog.removeFoodItem(req.user.id, dateStr, meal_type, item_id);
+        const userGoals = getUserGoals(req.user);
 
-        res.json({ success: true, data: log });
+        res.json({
+            success: true,
+            data: {
+                ...log,
+                goals: userGoals
+            }
+        });
     } catch (error) {
         console.error('removeFoodItem error:', error);
         res.status(500).json({ success: false, message: error.message || 'Failed to remove food item' });
@@ -113,7 +145,8 @@ const updateWater = async (req, res) => {
 // @access Private
 const getWeeklySummary = async (req, res) => {
     try {
-        const summary = await MealLog.getWeeklySummary(req.user.id);
+        const userGoals = getUserGoals(req.user);
+        const summary = await MealLog.getWeeklySummary(req.user.id, userGoals.calories);
         res.json({ success: true, data: summary });
     } catch (error) {
         console.error('getWeeklySummary error:', error);
@@ -126,14 +159,23 @@ const getWeeklySummary = async (req, res) => {
 // @access Private
 const getCalorieGoal = async (req, res) => {
     try {
-        const goal = calcCalorieGoal(req.user);
-        res.json({ success: true, data: { calorie_goal: goal } });
+        const userGoals = getUserGoals(req.user);
+        res.json({
+            success: true,
+            data: {
+                calorie_goal: userGoals.calories,
+                protein_goal: userGoals.protein,
+                carbs_goal: userGoals.carbs,
+                fat_goal: userGoals.fat,
+                goals: userGoals
+            }
+        });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Failed to calculate goal' });
+        res.status(500).json({ success: false, message: 'Failed to get goal' });
     }
 };
 
-// @desc   Update nutrition goals
+// @desc   Update nutrition goals – saved permanently to User profile
 // @route  PUT /api/nutrition/goals
 // @access Private
 const updateGoals = async (req, res) => {
@@ -142,14 +184,38 @@ const updateGoals = async (req, res) => {
         if (!calories && !protein && !carbs && !fat) {
             return res.status(400).json({ success: false, message: 'At least one goal value is required' });
         }
+
+        const UserSchema = require('../models/UserSchema');
+
+        // Build update for User model
+        const userUpdate = {};
+        if (calories) userUpdate.calorie_goal = Number(calories);
+        if (protein) userUpdate.protein_goal = Number(protein);
+        if (carbs) userUpdate.carbs_goal = Number(carbs);
+        if (fat) userUpdate.fat_goal = Number(fat);
+
+        // Save goals to User profile (persists across dates & devices)
+        await UserSchema.findByIdAndUpdate(req.user.id, userUpdate);
+
+        // Also update today's MealLog for convenience (date filtering in weekly chart etc.)
         const dateStr = toDateStr(date);
-        const goals = {};
-        if (calories) goals.calories = Number(calories);
-        if (protein) goals.protein = Number(protein);
-        if (carbs) goals.carbs = Number(carbs);
-        if (fat) goals.fat = Number(fat);
-        const result = await MealLog.updateGoal(req.user.id, dateStr, goals);
-        res.json({ success: true, data: result });
+        const mealLogUpdate = {};
+        if (calories) mealLogUpdate.calories = Number(calories);
+        if (protein) mealLogUpdate.protein = Number(protein);
+        if (carbs) mealLogUpdate.carbs = Number(carbs);
+        if (fat) mealLogUpdate.fat = Number(fat);
+        try {
+            await MealLog.updateGoal(req.user.id, dateStr, mealLogUpdate);
+        } catch { /* non-critical, main save already done above */ }
+
+        const savedGoals = {
+            calories: userUpdate.calorie_goal || req.user.calorie_goal || calcCalorieGoal(req.user),
+            protein: userUpdate.protein_goal || req.user.protein_goal || 150,
+            carbs: userUpdate.carbs_goal || req.user.carbs_goal || 250,
+            fat: userUpdate.fat_goal || req.user.fat_goal || 65
+        };
+
+        res.json({ success: true, data: { goals: savedGoals } });
     } catch (error) {
         console.error('updateGoals error:', error);
         res.status(500).json({ success: false, message: 'Failed to update goals' });
@@ -157,4 +223,3 @@ const updateGoals = async (req, res) => {
 };
 
 module.exports = { getDailyLog, addFoodItem, removeFoodItem, updateWater, getWeeklySummary, getCalorieGoal, updateGoals };
-

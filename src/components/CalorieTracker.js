@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, X, Droplets, ChevronLeft, ChevronRight, Flame, Droplet, Coffee, Sun, Utensils, Apple, BarChart2, RefreshCw, AlertCircle, Camera, Loader2, Sparkles } from 'lucide-react';
-import { nutritionAPI, aiAPI } from '../services/api';
+import { nutritionAPI, aiAPI, customFoodsAPI } from '../services/api';
 
 // ─────────────────────────────────────────────
 // Local Generic Foods Database (per 100g unless noted)
@@ -123,9 +123,9 @@ const searchLocalFoods = (q) => {
 };
 
 // ─────────────────────────────────────────────
-// Goals persistence key
+// Goals localStorage cache key (used only as offline fallback)
 // ─────────────────────────────────────────────
-const GOALS_KEY = 'fitlife_nutrition_goals';
+const GOALS_CACHE_KEY = 'fitlife_nutrition_goals_cache';
 
 // ─────────────────────────────────────────────
 // AI Photo Upload Tab (New)
@@ -302,27 +302,69 @@ const FoodSearchModal = ({ mealType, mealLabel, onAdd, onClose }) => {
     const [selected, setSelected] = useState(null);
     const [quantity, setQuantity] = useState(100);
     const [customFood, setCustomFood] = useState({ name: '', calories: '', protein: '', carbs: '', fat: '', quantity: 100 });
+    const [saveCustom, setSaveCustom] = useState(false);
     const [tab, setTab] = useState('search');
     const [error, setError] = useState('');
+    const [savedFoods, setSavedFoods] = useState([]);
+    const [loadingSaved, setLoadingSaved] = useState(false);
+    const [savingFood, setSavingFood] = useState(false);
+    const [deletingId, setDeletingId] = useState(null);
+    const [selectedSavedFood, setSelectedSavedFood] = useState(null);
+    const [savedQty, setSavedQty] = useState(100);
+    const [myFoodsQuery, setMyFoodsQuery] = useState('');
+
+    // Load saved foods on mount
+    useEffect(() => {
+        const load = async () => {
+            setLoadingSaved(true);
+            try {
+                const res = await customFoodsAPI.getAll();
+                if (res.success) setSavedFoods(res.data);
+            } catch { }
+            setLoadingSaved(false);
+        };
+        load();
+    }, []);
+
+    // Convert a saved food to the product format used by calcNutrition
+    const savedToProduct = (sf) => ({
+        product_name: sf.name,
+        brands: sf.brand || '⭐ My Foods',
+        isSaved: true,
+        savedId: sf._id || sf.id,
+        nutriments: {
+            'energy-kcal_100g': sf.calories,
+            'proteins_100g': sf.protein,
+            'carbohydrates_100g': sf.carbs,
+            'fat_100g': sf.fat,
+            'fiber_100g': sf.fiber || 0,
+        }
+    });
 
     const searchFood = async () => {
         if (!query.trim()) return;
         setSearching(true); setError('');
-        // Instantly show local matches first
+
+        // Match from saved foods first
+        const savedMatches = savedFoods
+            .filter(sf => sf.name.toLowerCase().includes(query.toLowerCase()))
+            .map(savedToProduct);
+
+        // Then local generic database
         const local = searchLocalFoods(query);
-        setResults(local);
+        setResults([...savedMatches, ...local]);
+
         try {
             const res = await fetch(
                 `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=8&fields=product_name,brands,nutriments`
             );
             const data = await res.json();
             const api = (data.products || []).filter(p => p.product_name && p.nutriments?.['energy-kcal_100g']);
-            // Merge: local first, then API (deduplicated by name)
-            const combined = [...local, ...api];
+            const combined = [...savedMatches, ...local, ...api];
             setResults(combined);
             if (combined.length === 0) setError('No results. Try another term or add a custom food.');
         } catch {
-            if (local.length === 0) setError('Search failed. Check your connection or add a custom food.');
+            if ([...savedMatches, ...local].length === 0) setError('Search failed. Check your connection or add a custom food.');
         }
         setSearching(false);
     };
@@ -338,6 +380,52 @@ const FoodSearchModal = ({ mealType, mealLabel, onAdd, onClose }) => {
             fiber: Math.round((n['fiber_100g'] || 0) * factor * 10) / 10,
         };
     };
+
+    const handleSaveCustomFood = async () => {
+        if (!customFood.name || !customFood.calories) return;
+        setSavingFood(true);
+        setError('');
+        try {
+            const qty = Number(customFood.quantity) || 100;
+            const factor = qty / 100;
+            const res = await customFoodsAPI.create({
+                name: customFood.name,
+                calories: Math.round(Number(customFood.calories) / factor),
+                protein: Math.round(Number(customFood.protein) / factor * 10) / 10,
+                carbs: Math.round(Number(customFood.carbs) / factor * 10) / 10,
+                fat: Math.round(Number(customFood.fat) / factor * 10) / 10,
+                fiber: 0,
+                default_quantity: qty
+            });
+            if (res.success) {
+                setSavedFoods(prev => [...prev, res.data]);
+                setError('');
+            }
+        } catch (err) {
+            if (err?.response?.status === 409) {
+                setError(`"${customFood.name}" is already saved in My Foods`);
+            } else {
+                setError('Failed to save. Please try again.');
+            }
+        }
+        setSavingFood(false);
+    };
+
+    const handleDeleteSaved = async (id) => {
+        setDeletingId(id);
+        try {
+            await customFoodsAPI.delete(id);
+            setSavedFoods(prev => prev.filter(f => (f._id || f.id) !== id));
+        } catch { }
+        setDeletingId(null);
+    };
+
+    const tabs = [
+        { id: 'search', icon: '🔍', label: 'Search' },
+        { id: 'myfoods', icon: '⭐', label: 'My Foods' },
+        { id: 'ai', icon: '🤖', label: 'AI Photo' },
+        { id: 'custom', icon: '✏️', label: 'Custom' }
+    ];
 
     return (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-start justify-center p-4 overflow-y-auto">
@@ -360,26 +448,22 @@ const FoodSearchModal = ({ mealType, mealLabel, onAdd, onClose }) => {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex p-2 bg-black/20 border-b border-white/10 gap-2">
-                    {[
-                        { id: 'search', icon: '🔍', label: 'Search' },
-                        { id: 'ai', icon: '🤖', label: 'AI Photo' },
-                        { id: 'custom', icon: '✏️', label: 'Custom' }
-                    ].map(t => (
+                <div className="flex p-2 bg-black/20 border-b border-white/10 gap-1.5">
+                    {tabs.map(t => (
                         <button
                             key={t.id}
                             onClick={() => setTab(t.id)}
-                            className={`flex-1 py-3.5 rounded-[1.25rem] text-sm font-black tracking-wide transition-all duration-300 flex items-center justify-center gap-2 ${tab === t.id ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-900/40' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                            className={`flex-1 py-3 rounded-[1.25rem] text-xs font-black tracking-wide transition-all duration-300 flex items-center justify-center gap-1.5 ${tab === t.id ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-900/40' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
                         >
-                            <span className="text-lg">{t.icon}</span> {t.label}
+                            <span className="text-base">{t.icon}</span>
+                            <span className="hidden sm:inline">{t.label}</span>
                         </button>
                     ))}
                 </div>
 
                 <div className="overflow-y-auto flex-1 p-6 custom-scrollbar">
-                    {tab === 'ai' ? (
-                        <AIPhotoTab onAdd={onAdd} mealLabel={mealLabel} />
-                    ) : tab === 'search' ? (
+                    {/* ── SEARCH TAB ── */}
+                    {tab === 'search' && (
                         <>
                             <div className="flex gap-2 mb-3">
                                 <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchFood()}
@@ -396,8 +480,13 @@ const FoodSearchModal = ({ mealType, mealLabel, onAdd, onClose }) => {
                                     <button key={i} onClick={() => setSelected(p)}
                                         className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${selected === p ? 'border-purple-500 bg-purple-500/20' : 'border-white/10 bg-white/5 hover:border-purple-400/50 hover:bg-white/10'}`}>
                                         <div className="flex justify-between items-start">
-                                            <div><p className="font-semibold text-white text-sm leading-tight">{p.product_name}</p>
-                                                {p.brands && <p className="text-white/40 text-xs">{p.brands}</p>}</div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-semibold text-white text-sm leading-tight">{p.product_name}</p>
+                                                    {p.isSaved && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider border border-yellow-500/30">Saved</span>}
+                                                </div>
+                                                {p.brands && <p className="text-white/40 text-xs">{p.brands}</p>}
+                                            </div>
                                             <span className="text-orange-400 font-bold text-sm whitespace-nowrap ml-2">{Math.round(p.nutriments['energy-kcal_100g'])} kcal/100g</span>
                                         </div>
                                     </button>
@@ -431,7 +520,136 @@ const FoodSearchModal = ({ mealType, mealLabel, onAdd, onClose }) => {
                                 </div>
                             )}
                         </>
-                    ) : (
+                    )}
+
+                    {/* ── MY FOODS TAB ── */}
+                    {tab === 'myfoods' && (
+                        <div className="space-y-3">
+                            {/* Search bar */}
+                            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                                <Search className="w-4 h-4 text-white/30 shrink-0" />
+                                <input
+                                    value={myFoodsQuery}
+                                    onChange={e => setMyFoodsQuery(e.target.value)}
+                                    placeholder="Search your saved foods..."
+                                    className="flex-1 bg-transparent text-white text-sm placeholder-white/25 focus:outline-none"
+                                />
+                                {myFoodsQuery && (
+                                    <button onClick={() => setMyFoodsQuery('')} className="text-white/30 hover:text-white transition-colors">
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
+                            <p className="text-white/30 text-xs font-bold uppercase tracking-widest">{savedFoods.length} item{savedFoods.length !== 1 ? 's' : ''} saved</p>
+                            {loadingSaved && (
+                                <div className="text-center py-8 text-white/30">
+                                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                                    <p className="text-xs">Loading...</p>
+                                </div>
+                            )}
+                            {!loadingSaved && savedFoods.length === 0 && (
+                                <div className="text-center py-12 text-white/20">
+                                    <p className="text-4xl mb-3">⭐</p>
+                                    <p className="font-bold text-sm">No saved foods yet</p>
+                                    <p className="text-xs mt-1">Use the Custom tab to add and save your foods</p>
+                                </div>
+                            )}
+                            {(() => {
+                                const filtered = myFoodsQuery.trim()
+                                    ? savedFoods.filter(sf => sf.name.toLowerCase().includes(myFoodsQuery.toLowerCase()))
+                                    : savedFoods;
+                                return (
+                                    <>
+                                        {!loadingSaved && savedFoods.length > 0 && filtered.length === 0 && (
+                                            <p className="text-center text-white/30 text-sm py-6">No foods match &ldquo;{myFoodsQuery}&rdquo;</p>
+                                        )}
+                                        {filtered.map(sf => {
+                                            const id = sf._id || sf.id;
+                                            const isSelected = selectedSavedFood && (selectedSavedFood._id || selectedSavedFood.id) === id;
+                                            return (
+                                                <div key={id} className="rounded-2xl border transition-all overflow-hidden" style={{ borderColor: isSelected ? 'rgba(168,85,247,0.5)' : 'rgba(255,255,255,0.08)' }}>
+                                                    {/* Food row */}
+                                                    <div
+                                                        onClick={() => {
+                                                            if (isSelected) { setSelectedSavedFood(null); }
+                                                            else { setSelectedSavedFood(sf); setSavedQty(sf.default_quantity || 100); }
+                                                        }}
+                                                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                                                    >
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-bold text-white text-sm truncate">{sf.name}</p>
+                                                            <p className="text-white/35 text-xs mt-0.5">🔥 {sf.calories} · P {sf.protein}g · C {sf.carbs}g · F {sf.fat}g <span className="text-white/20">per 100g</span></p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 shrink-0 ml-3">
+                                                            <span className={`text-xs font-bold transition-colors ${isSelected ? 'text-purple-400' : 'text-white/25'}`}>{isSelected ? 'Selected ▲' : 'Select ▼'}</span>
+                                                            <button
+                                                                onClick={e => { e.stopPropagation(); handleDeleteSaved(id); }}
+                                                                disabled={deletingId === id}
+                                                                className="text-white/20 hover:text-red-400 transition-colors p-1.5 disabled:opacity-40">
+                                                                {deletingId === id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    {/* Expanded quantity + add panel */}
+                                                    {isSelected && (
+                                                        <div className="px-4 pb-4 bg-purple-500/10 border-t border-purple-500/20">
+                                                            <div className="flex items-center gap-3 mt-3 mb-3">
+                                                                <label className="text-xs text-white/60 font-medium">Quantity (g)</label>
+                                                                <input
+                                                                    type="number" min="1"
+                                                                    value={savedQty}
+                                                                    onChange={e => setSavedQty(Number(e.target.value))}
+                                                                    onClick={e => e.stopPropagation()}
+                                                                    className="w-24 px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                                />
+                                                            </div>
+                                                            {/* Live macro preview */}
+                                                            <div className="grid grid-cols-4 gap-2 mb-3">
+                                                                {[['🔥', Math.round(sf.calories * savedQty / 100), 'kcal'],
+                                                                ['🥩', Math.round(sf.protein * savedQty / 100 * 10) / 10 + 'g', 'protein'],
+                                                                ['🌾', Math.round(sf.carbs * savedQty / 100 * 10) / 10 + 'g', 'carbs'],
+                                                                ['🧈', Math.round(sf.fat * savedQty / 100 * 10) / 10 + 'g', 'fat']
+                                                                ].map(([icon, val, label]) => (
+                                                                    <div key={label} className="bg-white/10 rounded-lg p-2 text-center">
+                                                                        <div className="text-[10px] text-white/50 mb-0.5">{icon} {label}</div>
+                                                                        <div className="font-bold text-sm text-white">{val}</div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    onAdd({
+                                                                        name: sf.name,
+                                                                        brand: sf.brand || '⭐ My Foods',
+                                                                        quantity: savedQty,
+                                                                        calories: Math.round(sf.calories * savedQty / 100),
+                                                                        protein: Math.round(sf.protein * savedQty / 100 * 10) / 10,
+                                                                        carbs: Math.round(sf.carbs * savedQty / 100 * 10) / 10,
+                                                                        fat: Math.round(sf.fat * savedQty / 100 * 10) / 10,
+                                                                        fiber: 0
+                                                                    });
+                                                                    setSelectedSavedFood(null);
+                                                                }}
+                                                                className="w-full bg-purple-600 hover:bg-purple-500 text-white py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                                                            >
+                                                                <Plus className="w-4 h-4" /> Add to {mealLabel}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </>
+                                );
+                            })()}
+                        </div>
+                    )}
+
+                    {/* ── AI PHOTO TAB ── */}
+                    {tab === 'ai' && <AIPhotoTab onAdd={onAdd} mealLabel={mealLabel} />}
+
+                    {/* ── CUSTOM TAB ── */}
+                    {tab === 'custom' && (
                         <div className="space-y-3">
                             <input placeholder="Food name *" value={customFood.name} onChange={e => setCustomFood(p => ({ ...p, name: e.target.value }))}
                                 className="w-full px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
@@ -449,11 +667,53 @@ const FoodSearchModal = ({ mealType, mealLabel, onAdd, onClose }) => {
                                         className="w-full px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/30 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
                                 </div>
                             </div>
-                            <button onClick={() => { if (!customFood.name || !customFood.calories) return; onAdd({ name: customFood.name, brand: null, quantity: Number(customFood.quantity) || 100, calories: Number(customFood.calories), protein: Number(customFood.protein) || 0, carbs: Number(customFood.carbs) || 0, fat: Number(customFood.fat) || 0, fiber: 0 }); }}
-                                disabled={!customFood.name || !customFood.calories}
-                                className="w-full bg-purple-600 hover:bg-purple-500 text-white py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-40">
-                                <Plus className="w-4 h-4" /> Add Custom Food
+
+                            {/* Save to My Foods toggle */}
+                            <button
+                                onClick={() => setSaveCustom(v => !v)}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all text-sm font-semibold ${saveCustom ? 'bg-yellow-500/15 border-yellow-500/40 text-yellow-300' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}
+                            >
+                                <span className="flex items-center gap-2">
+                                    <span className="text-base">⭐</span>
+                                    Save to My Foods
+                                </span>
+                                <div className={`w-10 h-5 rounded-full transition-all relative ${saveCustom ? 'bg-yellow-500' : 'bg-white/20'}`}>
+                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${saveCustom ? 'right-0.5' : 'left-0.5'}`} />
+                                </div>
                             </button>
+                            {saveCustom && (
+                                <p className="text-yellow-400/60 text-xs text-center">This food will be saved to My Foods and appear in future searches ⭐</p>
+                            )}
+
+                            <div className="flex gap-2 pt-1">
+                                <button
+                                    onClick={() => {
+                                        if (!customFood.name || !customFood.calories) return;
+                                        onAdd({
+                                            name: customFood.name, brand: null,
+                                            quantity: Number(customFood.quantity) || 100,
+                                            calories: Number(customFood.calories),
+                                            protein: Number(customFood.protein) || 0,
+                                            carbs: Number(customFood.carbs) || 0,
+                                            fat: Number(customFood.fat) || 0,
+                                            fiber: 0
+                                        });
+                                        if (saveCustom) handleSaveCustomFood();
+                                    }}
+                                    disabled={!customFood.name || !customFood.calories}
+                                    className="flex-1 bg-purple-600 hover:bg-purple-500 text-white py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-40">
+                                    <Plus className="w-4 h-4" /> Add to {mealLabel}
+                                </button>
+                                {saveCustom && (
+                                    <button
+                                        onClick={handleSaveCustomFood}
+                                        disabled={!customFood.name || !customFood.calories || savingFood}
+                                        className="bg-yellow-600/80 hover:bg-yellow-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center gap-1.5 disabled:opacity-40">
+                                        {savingFood ? <RefreshCw className="w-4 h-4 animate-spin" /> : <span>⭐</span>}
+                                        Save only
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -461,6 +721,7 @@ const FoodSearchModal = ({ mealType, mealLabel, onAdd, onClose }) => {
         </div>
     );
 };
+
 
 // ─────────────────────────────────────────────
 // Calorie Ring SVG
@@ -679,20 +940,31 @@ const CalorieTracker = () => {
     const [apiError, setApiError] = useState('');
     const [editingGoals, setEditingGoals] = useState(false);
 
-    // Load goals from localStorage (persists across dates)
-    const getStoredGoals = () => {
+    // Default goals (used while loading from API)
+    const DEFAULT_GOALS = { calories: 2000, protein: 150, carbs: 250, fat: 65 };
+
+    // Try to read cached goals from localStorage as initial state (avoids flicker)
+    const getCachedGoals = () => {
         try {
-            const saved = localStorage.getItem(GOALS_KEY);
-            return saved ? JSON.parse(saved) : { calories: 2000, protein: 150, carbs: 250, fat: 65 };
-        } catch { return { calories: 2000, protein: 150, carbs: 250, fat: 65 }; }
+            const saved = localStorage.getItem(GOALS_CACHE_KEY);
+            return saved ? JSON.parse(saved) : DEFAULT_GOALS;
+        } catch { return DEFAULT_GOALS; }
     };
-    const [goals, setGoals] = useState(getStoredGoals);
+    const [goals, setGoals] = useState(getCachedGoals);
 
     const loadLog = useCallback(async () => {
         setLoading(true); setApiError('');
         try {
             const res = await nutritionAPI.getDaily(date);
-            if (res.success) setLog(res.data);
+            if (res.success) {
+                setLog(res.data);
+                // Load goals from the API response (user profile goals)
+                if (res.data.goals) {
+                    setGoals(res.data.goals);
+                    // Cache locally as offline fallback
+                    localStorage.setItem(GOALS_CACHE_KEY, JSON.stringify(res.data.goals));
+                }
+            }
         } catch (e) {
             setApiError('Failed to load log. Please ensure you are logged in.');
         }
@@ -712,13 +984,25 @@ const CalorieTracker = () => {
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
 
     const handleSaveGoals = async (newGoals) => {
-        // Persist to localStorage immediately (survives all date changes)
-        localStorage.setItem(GOALS_KEY, JSON.stringify(newGoals));
+        // Optimistically update UI
         setGoals(newGoals);
-        // Also sync today's log in the backend
-        try { await nutritionAPI.updateGoals(date, newGoals); } catch { /* silent */ }
         setEditingGoals(false);
-        showToast('✅ Goals saved!');
+        try {
+            // API is the primary save — goals stored on the User profile in MongoDB
+            const res = await nutritionAPI.updateGoals(date, newGoals);
+            if (res.success) {
+                // Update cache after confirmed save
+                localStorage.setItem(GOALS_CACHE_KEY, JSON.stringify(newGoals));
+                showToast('✅ Goals saved!');
+            } else {
+                throw new Error('Server returned failure');
+            }
+        } catch (err) {
+            // Roll back optimistic update on failure
+            const cached = getCachedGoals();
+            setGoals(cached);
+            showToast('❌ Failed to save goals. Please try again.');
+        }
     };
 
     const handleAddFood = async (food) => {

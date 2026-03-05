@@ -104,7 +104,7 @@ class MealLog {
     }
 
     // Get last 7 days summary
-    static async getWeeklySummary(userId) {
+    static async getWeeklySummary(userId, calorieGoal = 2000) {
         const days = [];
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
@@ -119,9 +119,9 @@ class MealLog {
 
         return days.map(date => {
             const log = logs.find(l => l.log_date === date);
-            if (!log) return { date, calories: 0, goal: 2000, protein: 0, carbs: 0, fat: 0 };
+            if (!log) return { date, calories: 0, goal: calorieGoal, protein: 0, carbs: 0, fat: 0 };
             const totals = MealLog._calcTotals(log);
-            return { date, calories: totals.calories, goal: log.calorie_goal, ...totals };
+            return { date, calories: totals.calories, goal: log.calorie_goal || calorieGoal, ...totals };
         });
     }
 

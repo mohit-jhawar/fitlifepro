@@ -1,7 +1,185 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Camera, Eye, EyeOff, ChevronDown, Check, AlertCircle, User, Scale, Lock, Shield, Pencil, Zap, Target, Activity } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
+// ─────────────────────────────────────────────────────────────
+// Image Crop Modal — fixed circle frame, drag image underneath
+// ─────────────────────────────────────────────────────────────
+const CROP_SIZE = 300; // diameter of the circular preview (px)
+
+const ImageCropModal = ({ imageSrc, onSave, onCancel }) => {
+  const imgEl = useRef(null);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [natW, setNatW] = useState(1);
+  const [natH, setNatH] = useState(1);
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const drag = useRef(null);
+
+  // Scale so image always fills the crop circle at zoom = 1
+  const baseScale = imgLoaded ? Math.max(CROP_SIZE / natW, CROP_SIZE / natH) : 1;
+  const scale = baseScale * zoom;
+  const imgW = natW * scale;
+  const imgH = natH * scale;
+
+  const clamp = useCallback((ox, oy, iw, ih) => ({
+    x: Math.min(0, Math.max(ox, CROP_SIZE - iw)),
+    y: Math.min(0, Math.max(oy, CROP_SIZE - ih)),
+  }), []);
+
+  // Re-clamp whenever zoom changes
+  useEffect(() => {
+    if (!imgLoaded) return;
+    const iw = natW * baseScale * zoom;
+    const ih = natH * baseScale * zoom;
+    setOffset(prev => clamp(prev.x, prev.y, iw, ih));
+  }, [zoom, imgLoaded, natW, natH, baseScale, clamp]);
+
+  const getClient = (e) => e.touches
+    ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    : { x: e.clientX, y: e.clientY };
+
+  const onDown = (e) => {
+    e.preventDefault();
+    const { x, y } = getClient(e);
+    drag.current = { sx: x, sy: y, ox: offset.x, oy: offset.y };
+  };
+  const onMove = (e) => {
+    if (!drag.current) return;
+    e.preventDefault();
+    const { x, y } = getClient(e);
+    setOffset(clamp(
+      drag.current.ox + x - drag.current.sx,
+      drag.current.oy + y - drag.current.sy,
+      imgW, imgH
+    ));
+  };
+  const onUp = () => { drag.current = null; };
+
+  const handleSave = () => {
+    const img = new window.Image();
+    img.onload = () => {
+      // Region of the natural image that falls inside the circle
+      const srcX = (-offset.x) / scale;
+      const srcY = (-offset.y) / scale;
+      const srcSize = CROP_SIZE / scale;
+
+      const out = document.createElement('canvas');
+      out.width = 400; out.height = 400;
+      const ctx = out.getContext('2d');
+      ctx.beginPath();
+      ctx.arc(200, 200, 200, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, 400, 400);
+      onSave(out.toDataURL('image/jpeg', 0.92));
+    };
+    img.src = imageSrc;
+  };
+
+  return (
+    <div className="fixed inset-0 z-[300] bg-black/85 backdrop-blur-lg flex items-center justify-center p-4">
+      <div className="bg-[#0d0f18] border border-purple-500/20 rounded-[2rem] shadow-2xl w-full max-w-sm overflow-hidden">
+
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-white/8 text-center">
+          <h3 className="text-white font-black text-xl tracking-tight">Crop Profile Photo</h3>
+          <p className="text-white/35 text-xs mt-1">Drag to reposition · Zoom to fit</p>
+        </div>
+
+        {/* Crop stage */}
+        <div className="flex flex-col items-center py-8 bg-black/60 gap-4">
+          {/* The circular viewport */}
+          <div
+            className="relative overflow-hidden select-none"
+            style={{
+              width: CROP_SIZE,
+              height: CROP_SIZE,
+              borderRadius: '50%',
+              boxShadow: '0 0 0 3px #7c3aed, 0 0 0 8px rgba(124,58,237,0.18), 0 0 60px rgba(124,58,237,0.25)',
+              cursor: 'grab',
+              background: '#111',
+            }}
+            onMouseDown={onDown}
+            onMouseMove={onMove}
+            onMouseUp={onUp}
+            onMouseLeave={onUp}
+            onTouchStart={onDown}
+            onTouchMove={onMove}
+            onTouchEnd={onUp}
+          >
+            {/* Image */}
+            <img
+              ref={imgEl}
+              src={imageSrc}
+              alt="crop preview"
+              draggable={false}
+              onLoad={(e) => {
+                setNatW(e.target.naturalWidth);
+                setNatH(e.target.naturalHeight);
+                setImgLoaded(true);
+              }}
+              style={{
+                position: 'absolute',
+                left: offset.x,
+                top: offset.y,
+                width: imgW,
+                height: imgH,
+                pointerEvents: 'none',
+                userSelect: 'none',
+              }}
+            />
+            {/* Subtle rule-of-thirds overlay */}
+            {imgLoaded && (
+              <div className="absolute inset-0 pointer-events-none">
+                {[33.3, 66.6].map(p => (
+                  <React.Fragment key={p}>
+                    <div style={{ position: 'absolute', left: `${p}%`, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.07)' }} />
+                    <div style={{ position: 'absolute', top: `${p}%`, left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.07)' }} />
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+            {!imgLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center text-white/20 text-sm">Loading…</div>
+            )}
+          </div>
+
+          {/* Zoom slider */}
+          <div className="flex items-center gap-3 w-[CROP_SIZE_px] px-2" style={{ width: CROP_SIZE }}>
+            <span className="text-white/25 text-base">−</span>
+            <input
+              type="range" min="1" max="4" step="0.02"
+              value={zoom}
+              onChange={e => setZoom(Number(e.target.value))}
+              className="flex-1 accent-purple-500 cursor-pointer h-1.5"
+            />
+            <span className="text-white/25 text-base">+</span>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 px-5 py-5 border-t border-white/5">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3 rounded-2xl text-sm font-bold text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!imgLoaded}
+            className="flex-1 py-3 rounded-2xl text-sm font-black text-white flex items-center justify-center gap-2 disabled:opacity-40 transition-all hover:brightness-110 active:scale-95"
+            style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed,#9333ea)' }}
+          >
+            <Check className="w-4 h-4" /> Apply
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
 const GENDER_OPTIONS = [
   { value: '', label: 'Prefer not to say' },
   { value: 'male', label: 'Male' },
@@ -62,6 +240,7 @@ const ProfileSettingsView = ({ onBack }) => {
   const [gender, setGender] = useState(user?.gender || '');
   const [dob, setDob] = useState(getInitialDob());
   const [profilePicture, setProfilePicture] = useState(user?.profile_picture_url || '');
+  const [cropSrc, setCropSrc] = useState(null);
   const [units, setUnits] = useState(user?.units || 'kg');
   const [currentWeight, setCurrentWeight] = useState(user?.weight || '');
   const [height, setHeight] = useState(user?.height || '');
@@ -82,10 +261,11 @@ const ProfileSettingsView = ({ onBack }) => {
   const handleAvatarChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { showToast('error', 'Image must be under 2MB'); return; }
+    if (file.size > 5 * 1024 * 1024) { showToast('error', 'Image must be under 5MB'); return; }
     const reader = new FileReader();
-    reader.onload = (ev) => setProfilePicture(ev.target.result);
+    reader.onload = (ev) => { setCropSrc(ev.target.result); };
     reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const handleSaveProfile = async () => {
@@ -132,6 +312,19 @@ const ProfileSettingsView = ({ onBack }) => {
   return (
     <div className="min-h-screen bg-[#080910] pt-16 pb-20">
 
+      {/* ── Crop Modal ── */}
+      {cropSrc && (
+        <ImageCropModal
+          imageSrc={cropSrc}
+          onSave={(cropped) => {
+            setProfilePicture(cropped);
+            setCropSrc(null);
+            showToast('success', 'Photo cropped! Hit Save Profile to keep it.');
+          }}
+          onCancel={() => setCropSrc(null)}
+        />
+      )}
+
       {/* ── Toast ── */}
       {toast && (
         <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border backdrop-blur-xl text-sm font-semibold whitespace-nowrap animate-in fade-in slide-in-from-top-3 duration-300 ${toast.type === 'success'
@@ -161,10 +354,10 @@ const ProfileSettingsView = ({ onBack }) => {
               {/* Avatar */}
               <div className="relative shrink-0">
                 {/* Glow ring */}
-                <div className="absolute -inset-2 rounded-[1.75rem] bg-gradient-to-br from-purple-500 via-indigo-500 to-pink-500 opacity-50 blur-lg" />
-                <div className="absolute -inset-0.5 rounded-[1.5rem] bg-gradient-to-br from-purple-500 via-indigo-500 to-pink-500 opacity-70" />
+                <div className="absolute -inset-2 rounded-full bg-gradient-to-br from-purple-500 via-indigo-500 to-pink-500 opacity-50 blur-lg" />
+                <div className="absolute -inset-0.5 rounded-full bg-gradient-to-br from-purple-500 via-indigo-500 to-pink-500 opacity-70" />
                 {/* Avatar box */}
-                <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-[1.35rem] overflow-hidden border-2 border-white/20 shadow-2xl">
+                <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-2 border-white/20 shadow-2xl">
                   {profilePicture ? (
                     <img src={profilePicture} alt="Profile" className="w-full h-full object-cover" />
                   ) : (

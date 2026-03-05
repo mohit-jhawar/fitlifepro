@@ -216,6 +216,24 @@ export const nutritionAPI = {
     }
 };
 
+// Custom Foods API calls
+export const customFoodsAPI = {
+    getAll: async (query = '') => {
+        const params = query ? `?q=${encodeURIComponent(query)}` : '';
+        const response = await api.get(`/custom-foods${params}`);
+        return response.data;
+    },
+    create: async (food) => {
+        const response = await api.post('/custom-foods', food);
+        return response.data;
+    },
+    delete: async (id) => {
+        const response = await api.delete(`/custom-foods/${id}`);
+        return response.data;
+    }
+};
+
+
 // Weekly Summary API
 export const weeklySummaryAPI = {
     getLatest: async () => {

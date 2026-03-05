@@ -29,12 +29,22 @@ const auth = async (req, res, next) => {
                 });
             }
 
-            // Attach user to request
+            // Attach user to request — include all fields needed by nutrition controller
             req.user = {
                 id: user.id,
                 email: user.email,
                 name: user.name,
-                isPremium: user.is_premium
+                isPremium: user.is_premium,
+                // Fields for BMR calculation
+                weight: user.weight,
+                height: user.height,
+                gender: user.gender,
+                date_of_birth: user.date_of_birth,
+                // Persisted nutrition goals (null = use BMR default)
+                calorie_goal: user.calorie_goal,
+                protein_goal: user.protein_goal,
+                carbs_goal: user.carbs_goal,
+                fat_goal: user.fat_goal
             };
 
             next();
@@ -81,7 +91,15 @@ const optionalAuth = async (req, res, next) => {
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    isPremium: user.is_premium
+                    isPremium: user.is_premium,
+                    weight: user.weight,
+                    height: user.height,
+                    gender: user.gender,
+                    date_of_birth: user.date_of_birth,
+                    calorie_goal: user.calorie_goal,
+                    protein_goal: user.protein_goal,
+                    carbs_goal: user.carbs_goal,
+                    fat_goal: user.fat_goal
                 };
             }
         } catch (error) {

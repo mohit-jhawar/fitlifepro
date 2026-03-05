@@ -80,7 +80,12 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ['kg', 'lb'],
         default: 'kg'
-    }
+    },
+    // Nutrition Goals (persisted globally on the user, not per-day)
+    calorie_goal: { type: Number, default: null },
+    protein_goal: { type: Number, default: null },
+    carbs_goal: { type: Number, default: null },
+    fat_goal: { type: Number, default: null }
 }, {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
 });

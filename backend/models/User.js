@@ -113,7 +113,12 @@ class User {
             height: latestMetric?.height || null,
             bmi: latestMetric?.bmi || null,
             target_weight: user.target_weight || null,
-            units: user.units || 'kg'
+            units: user.units || 'kg',
+            // Nutrition goals (null means "use BMR default")
+            calorie_goal: user.calorie_goal || null,
+            protein_goal: user.protein_goal || null,
+            carbs_goal: user.carbs_goal || null,
+            fat_goal: user.fat_goal || null
         };
     }
 
