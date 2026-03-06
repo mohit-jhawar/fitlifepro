@@ -89,7 +89,7 @@ const App = () => {
     { category: "Underweight", range: "< 18.5", icon: "🎯", description: "Below healthy weight" },
     { category: "Normal", range: "18.5 - 24.9", icon: "✨", description: "Healthy weight range" },
     { category: "Overweight", range: "25 - 29.9", icon: "⚡", description: "Above healthy weight" },
-    { category: "Obese", range: "≥ 30", icon: "🎪", description: "Significantly above healthy weight" }
+    { category: "Obese", range: "≥ 30", icon: "🎢", description: "Significantly above healthy weight" }
   ];
 
 
@@ -145,19 +145,19 @@ const App = () => {
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     if (reminders?.workout?.enabled && reminders.workout.time === currentTime) {
-      showNotification('💪 Workout Time!', 'Time to hit your workout routine!');
+      showNotification('Workout Time!', 'Time to hit your workout routine!');
     }
     if (reminders?.breakfast?.enabled && reminders.breakfast.time === currentTime) {
-      showNotification('🍳 Breakfast Time!', 'Start your day with a healthy meal!');
+      showNotification('Breakfast Time!', 'Start your day with a healthy meal!');
     }
     if (reminders?.lunch?.enabled && reminders.lunch.time === currentTime) {
-      showNotification('🥗 Lunch Time!', 'Time for your midday meal!');
+      showNotification('Lunch Time!', 'Time for your midday meal!');
     }
     if (reminders?.dinner?.enabled && reminders.dinner.time === currentTime) {
-      showNotification('🍽️ Dinner Time!', 'Enjoy your evening meal!');
+      showNotification('Dinner Time!', 'Enjoy your evening meal!');
     }
     if (reminders?.water?.enabled && now.getMinutes() % reminders.water.interval === 0) {
-      showNotification('💧 Hydration Reminder!', 'Time to drink some water!');
+      showNotification('Hydration Reminder!', 'Time to drink some water!');
     }
   }, [reminders]);
 
@@ -960,7 +960,7 @@ const App = () => {
         </div>
 
         {menuOpen && (
-          <div className="lg:hidden mt-4 bg-white/20 backdrop-blur-md rounded-2xl border border-white/30 overflow-hidden">
+          <div className="lg:hidden mt-4 bg-white/20 backdrop-blur-md rounded-2xl border border-white/30 overflow-hidden max-h-[80vh] overflow-y-auto">
             {isAuthenticated && (
               <div className="px-4 py-4 border-b border-white/20 bg-white/10">
                 <span className="text-white font-bold text-lg flex items-center gap-2">
@@ -1363,6 +1363,7 @@ const App = () => {
                 <img src="/assets/images/gallery-transform.jpg" alt="Transform" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-end p-4 sm:p-6">
                   <div className="text-white">
+                    <div className="text-3xl sm:text-5xl mb-2 sm:mb-3"></div>
                     <div className="text-3xl sm:text-5xl mb-2 sm:mb-3">💪</div>
                     <p className="font-bold text-sm sm:text-2xl">Transform Your Body</p>
                   </div>
@@ -1482,25 +1483,31 @@ const App = () => {
                     </h3>
                     <div className="flex-1 min-h-48 flex items-end gap-3">
                       {(() => {
-                        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                        const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                         const today = new Date();
                         const last7Days = Array.from({ length: 7 }, (_, i) => {
                           const d = new Date(today);
                           d.setDate(d.getDate() - (6 - i));
                           return d;
                         });
+                        const minutesPerDay = last7Days.map(date =>
+                          workoutSessions
+                            .filter(s => new Date(s.date).toDateString() === date.toDateString())
+                            .reduce((sum, s) => sum + ((s.totalTime || 0) / 60), 0)
+                        );
+                        const maxMinutes = Math.max(...minutesPerDay, 1);
 
                         return last7Days.map((date, i) => {
-                          const dayMinutes = workoutSessions
-                            .filter(s => new Date(s.date).toDateString() === date.toDateString())
-                            .reduce((sum, s) => sum + s.totalTime, 0) / 60;
+                          const dayMinutes = minutesPerDay[i];
+                          const heightPct = (dayMinutes / maxMinutes) * 100;
+                          const isToday = date.toDateString() === today.toDateString();
 
                           return (
-                            <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
+                            <div key={i} className="flex-1 flex flex-col items-center gap-2 group h-full justify-end">
                               <div className={`w-full rounded-t-lg relative h-full flex items-end ${darkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
                                 <div
-                                  className={`w-full rounded-t-lg transition-all duration-500 ${dayMinutes > 0 ? 'bg-gradient-to-t from-green-500 to-green-400 group-hover:from-green-400 group-hover:to-green-300' : 'bg-transparent'}`}
-                                  style={{ height: `${dayMinutes > 0 ? Math.min((dayMinutes / 60) * 100, 100) : 0}%`, minHeight: dayMinutes > 0 ? '4px' : '0' }}
+                                  className="w-full rounded-t-lg transition-all duration-500 bg-gradient-to-t from-purple-600 via-pink-500 to-orange-400 group-hover:opacity-80 relative"
+                                  style={{ height: `${heightPct}%`, minHeight: dayMinutes > 0 ? '4px' : '0' }}
                                 >
                                   {dayMinutes > 0 && (
                                     <div className={`absolute -top-8 left-1/2 -translate-x-1/2 text-xs font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap ${darkMode ? 'bg-white text-black' : 'bg-gray-900 text-white'}`}>
@@ -1509,8 +1516,8 @@ const App = () => {
                                   )}
                                 </div>
                               </div>
-                              <span className={`text-xs ${date.getDay() === today.getDay() ? (darkMode ? 'text-white font-bold' : 'text-indigo-600 font-bold') : 'text-gray-500'}`}>
-                                {days[date.getDay()]}
+                              <span className={`text-xs font-semibold ${isToday ? (darkMode ? 'text-white' : 'text-purple-600') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>
+                                {dayLabels[date.getDay()]}
                               </span>
                             </div>
                           );
@@ -1519,73 +1526,60 @@ const App = () => {
                     </div>
                   </div>
 
-                  {/* Monthly Calendar View */}
-                  <div className={`rounded-2xl p-6 border ${darkMode ? 'bg-black/20 border-white/5' : 'bg-white/50 border-gray-200 shadow-sm'}`}>
-                    <h3 className={`font-bold mb-6 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      <Calendar className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                      This Month
+                  {/* Intensity Heatmap — 4 Weeks */}
+                  <div className={`rounded-2xl p-6 border flex flex-col ${darkMode ? 'bg-black/20 border-white/5' : 'bg-white/50 border-gray-200 shadow-sm'}`}>
+                    <h3 className={`font-bold mb-4 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      <Flame className={`w-5 h-5 ${darkMode ? 'text-orange-400' : 'text-orange-500'}`} />
+                      Intensity Heatmap (4 Weeks)
                     </h3>
-                    <div className="grid grid-cols-7 gap-2">
-                      {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
-                        <div key={d} className="text-center text-xs text-gray-500 font-semibold mb-2">{d}</div>
+                    <div className="grid grid-cols-7 gap-1.5 w-full">
+                      {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                        <div key={i} className={`text-center text-xs font-bold mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{d}</div>
                       ))}
                       {(() => {
+                        const totalDays = 28;
                         const today = new Date();
-                        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-                        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
-
-                        return Array.from({ length: daysInMonth + firstDay }, (_, i) => {
-                          if (i < firstDay) return <div key={i} />;
-
-                          const day = i - firstDay + 1;
-                          const date = new Date(today.getFullYear(), today.getMonth(), day);
-                          const isToday = day === today.getDate();
-                          const hasWorkout = workoutSessions.some(s => new Date(s.date).toDateString() === date.toDateString());
-
+                        return Array.from({ length: totalDays }, (_, idx) => {
+                          const date = new Date(today);
+                          date.setDate(date.getDate() - (totalDays - 1 - idx));
+                          const dateStr = date.toDateString();
+                          const dayWorkouts = workoutSessions.filter(s => new Date(s.date).toDateString() === dateStr);
+                          let intensity = 0;
+                          let totalMinutes = 0;
+                          if (dayWorkouts.length > 0) {
+                            totalMinutes = dayWorkouts.reduce((sum, w) => sum + ((w.totalTime || 0) / 60), 0);
+                            if (totalMinutes >= 90) intensity = 4;
+                            else if (totalMinutes >= 60) intensity = 3;
+                            else if (totalMinutes >= 30) intensity = 2;
+                            else if (totalMinutes > 0) intensity = 1;
+                          }
+                          const lightColors = ['bg-gray-100 border border-gray-200', 'bg-emerald-100 border border-emerald-200', 'bg-emerald-300 border border-emerald-400', 'bg-emerald-500 border border-emerald-600', 'bg-orange-500 border border-orange-600'];
+                          const darkColors = ['bg-white/5 border border-white/10', 'bg-emerald-900/60 border border-emerald-700/50', 'bg-emerald-600/70 border border-emerald-500/50', 'bg-emerald-500/80 border border-emerald-400/50', 'bg-orange-500/80 border border-orange-400/50'];
+                          const colorClass = darkMode ? darkColors[intensity] : lightColors[intensity];
                           return (
-                            <div key={i} className="aspect-square flex items-center justify-center">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all
-                                ${isToday ? (darkMode ? 'border-2 border-white/30 text-white' : 'border-2 border-indigo-600 text-indigo-900 font-bold') : (darkMode ? 'text-gray-400' : 'text-gray-500')}
-                                ${hasWorkout ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg shadow-green-500/20' : (darkMode ? 'bg-white/5' : 'bg-gray-100')}
-                              `}>
-                                {day}
+                            <div
+                              key={idx}
+                              className={`aspect-square rounded transition-all cursor-pointer hover:scale-110 hover:shadow-lg group relative ${colorClass}`}
+                              title={`${date.toLocaleDateString()}: ${Math.floor(totalMinutes)} min${dayWorkouts.length > 0 ? ` (${dayWorkouts.length} workout${dayWorkouts.length !== 1 ? 's' : ''})` : ''}`}
+                            >
+                              <div className="absolute hidden group-hover:block bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs rounded whitespace-nowrap z-10 bg-gray-900 text-white border border-white/20">
+                                {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}<br />{Math.floor(totalMinutes)} min
                               </div>
                             </div>
                           );
                         });
                       })()}
                     </div>
-                  </div>
-                </div>
-
-                {/* Recent Workouts */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Recent Workouts</h3>
-                    <button onClick={() => navigateTo('analytics')} className={`text-sm font-semibold ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'}`}>
-                      See All
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {workoutSessions.slice(0, 5).map((session, index) => (
-                      <div key={index} className={`${darkMode ? 'bg-white/5' : 'bg-gray-50'} rounded-xl p-3 flex items-center justify-between`}>
-                        <div className="flex items-center gap-3">
-                          <div className="bg-gradient-to-br from-purple-500 to-pink-500 w-10 h-10 rounded-xl flex items-center justify-center">
-                            <Dumbbell className="w-5 h-5 text-white" />
-                          </div>
-                          <div>
-                            <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{session.exerciseName}</p>
-                            <p className={`text-sm ${darkMode ? 'text-white/60' : 'text-gray-500'}`}>
-                              {new Date(session.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{Math.floor(session.totalTime / 60)}m {session.totalTime % 60}s</p>
-                          <p className={`text-sm ${darkMode ? 'text-green-300' : 'text-green-600'}`}>{session.setsCompleted} sets</p>
-                        </div>
-                      </div>
-                    ))}
+                    <div className={`flex items-center gap-2 mt-3 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>
+                      <span>Less</span>
+                      {[0, 1, 2, 3, 4].map(i => (
+                        <div key={i} className={`w-3 h-3 rounded ${darkMode
+                          ? ['bg-white/5 border border-white/10', 'bg-emerald-900/60', 'bg-emerald-600/70', 'bg-emerald-500/80', 'bg-orange-500/80'][i]
+                          : ['bg-gray-100 border border-gray-200', 'bg-emerald-100', 'bg-emerald-300', 'bg-emerald-500', 'bg-orange-500'][i]
+                          }`} />
+                      ))}
+                      <span>More</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1696,8 +1690,6 @@ const App = () => {
                         </select>
                       </div>
 
-
-
                       <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">Workout Location *</label>
                         <div className="grid grid-cols-2 gap-3">
@@ -1725,7 +1717,7 @@ const App = () => {
                           <option value="weight-loss">📉 Weight Loss</option>
                           <option value="weight-gain">📈 Weight Gain</option>
                           <option value="muscle-building">💪 Muscle Building</option>
-                          <option value="maintenance">⚖️ Maintenance</option>
+                          <option value="maintenance">âš–ï¸ Maintenance</option>
                         </select>
                       </div>
 
@@ -1770,7 +1762,7 @@ const App = () => {
             </div>
           </div>
         </div>
-      </div>
+      </div >
     );
   }
 
@@ -2452,7 +2444,7 @@ const App = () => {
 
             {feedbackError && (
               <div className="mb-6 bg-red-50 border-2 border-red-200 text-red-700 px-6 py-4 rounded-2xl shadow-xl">
-                <p className="font-semibold">⚠️ {feedbackError}</p>
+                <p className="font-semibold">âš ï¸ {feedbackError}</p>
               </div>
             )}
 

@@ -1,436 +1,530 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, RotateCcw, SkipForward, Clock, Timer, CheckCircle, X, Zap, TrendingUp, Youtube } from 'lucide-react';
+import {
+    Play, Pause, SkipForward, RotateCcw, Clock, CheckCircle,
+    X, Youtube, Plus, Minus, Dumbbell, ChevronDown, ChevronUp,
+    Flame, ArrowRight, Target
+} from 'lucide-react';
 
-const WorkoutTimer = ({ onClose, onSaveSession, onSaveProgress }) => {
-    const [isRunning, setIsRunning] = useState(false);
-    const [workoutTime, setWorkoutTime] = useState(0);
-    const [exerciseTime, setExerciseTime] = useState(0);
-    const [restTime, setRestTime] = useState(0);
-    const [isResting, setIsResting] = useState(false);
-    const [currentSet, setCurrentSet] = useState(1);
+/* ─── Common exercises for autocomplete ─── */
+const SUGGESTIONS = [
+    'Bench Press', 'Squat', 'Deadlift', 'Pull-Up', 'Push-Up',
+    'Shoulder Press', 'Barbell Row', 'Lat Pulldown', 'Leg Press',
+    'Bicep Curl', 'Tricep Dip', 'Plank', 'Lunges', 'Hip Thrust',
+    'Cable Fly', 'Incline Press', 'Romanian Deadlift', 'Face Pull',
+];
+const REST_PRESETS = [30, 60, 90, 120];
+
+const fmt = (s) => {
+    const m = Math.floor(s / 60), sec = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+};
+
+/* ─── Circular rest ring ─── */
+const RestRing = ({ restTime, restDuration }) => {
+    const R = 52, C = 2 * Math.PI * R;
+    const offset = C * (1 - (restDuration > 0 ? restTime / restDuration : 0));
+    return (
+        <svg className="w-36 h-36 -rotate-90" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
+            <circle cx="60" cy="60" r={R} fill="none" stroke="url(#rg)" strokeWidth="8"
+                strokeLinecap="round" strokeDasharray={C} strokeDashoffset={offset}
+                style={{ transition: 'stroke-dashoffset 1s linear' }} />
+            <defs>
+                <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#f97316" /><stop offset="100%" stopColor="#ef4444" />
+                </linearGradient>
+            </defs>
+        </svg>
+    );
+};
+
+/* ─── Dot progress bar showing set completion ─── */
+const SetDots = ({ total, completed, current }) => (
+    <div className="flex items-center gap-1.5 justify-center flex-wrap">
+        {Array.from({ length: total }, (_, i) => {
+            const done = i < completed;
+            const active = i === completed && current;
+            return (
+                <div key={i} className={`rounded-full transition-all duration-500 ${done ? 'w-4 h-4 bg-gradient-to-br from-green-400 to-emerald-500 shadow shadow-green-500/40' :
+                    active ? 'w-5 h-5 bg-gradient-to-br from-violet-400 to-fuchsia-500 shadow shadow-violet-500/50 scale-110' :
+                        'w-4 h-4 bg-white/10 border border-white/15'
+                    }`} />
+            );
+        })}
+    </div>
+);
+
+/* ══════════════════════════════════════════════════════════
+   PHASE: PLAN — user sets up the exercise before starting
+══════════════════════════════════════════════════════════ */
+const PlanPhase = ({ onStart, totalSessionTime, exercisesDone }) => {
+    const [name, setName] = useState('');
+    const [query, setQuery] = useState('');
+    const [showDrop, setShowDrop] = useState(false);
+    const [targetSets, setTargetSets] = useState(3);
     const [restDuration, setRestDuration] = useState(60);
-    const [exerciseName, setExerciseName] = useState('');
+
+    const filtered = SUGGESTIONS.filter(s =>
+        query && s.toLowerCase().includes(query.toLowerCase()) && s.toLowerCase() !== query.toLowerCase()
+    );
+
+    const handleSelect = (n) => { setName(n); setQuery(n); setShowDrop(false); };
+
+    return (
+        <div className="flex flex-col gap-4 px-5 py-4">
+            {/* Exercise name */}
+            <div className="relative">
+                <label className="text-white/40 text-[10px] font-bold uppercase tracking-widest mb-1.5 block">Exercise Name</label>
+                <div className="flex gap-2">
+                    <div className="relative flex-1">
+                        <input
+                            value={query}
+                            onChange={e => { setQuery(e.target.value); setName(e.target.value); setShowDrop(true); }}
+                            onFocus={() => setShowDrop(true)}
+                            onBlur={() => setTimeout(() => setShowDrop(false), 150)}
+                            placeholder="Search or type exercise…"
+                            className="w-full px-4 py-2.5 rounded-xl text-white text-sm font-semibold placeholder-white/25 focus:outline-none focus:border-violet-400/60 border border-white/10 transition-all"
+                            style={{ background: 'rgba(255,255,255,0.06)' }}
+                        />
+                        {showDrop && filtered.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 border border-white/10 rounded-xl overflow-hidden z-20 shadow-xl">
+                                {filtered.slice(0, 6).map(s => (
+                                    <button key={s} onMouseDown={() => handleSelect(s)}
+                                        className="w-full text-left px-4 py-2.5 text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors flex items-center gap-2">
+                                        <Dumbbell className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />{s}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    {query && (
+                        <a href={`https://www.youtube.com/results?search_query=how+to+${encodeURIComponent(query)}+form`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="px-3 bg-red-600/70 hover:bg-red-600 border border-red-500/30 text-white rounded-xl flex items-center transition-colors"
+                            title="Watch form tutorial">
+                            <Youtube className="w-4 h-4" />
+                        </a>
+                    )}
+                </div>
+            </div>
+
+            {/* Target Sets */}
+            <div className="bg-white/5 border border-white/8 rounded-2xl p-4" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                <p className="text-white/35 text-[10px] font-bold uppercase tracking-widest mb-3">How many sets?</p>
+                <div className="flex items-center justify-between gap-3">
+                    <button onClick={() => setTargetSets(n => Math.max(1, n - 1))} className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all">
+                        <Minus className="w-4 h-4" />
+                    </button>
+                    <span className="text-4xl font-bold text-white">{targetSets}</span>
+                    <button onClick={() => setTargetSets(n => n + 1)} className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all">
+                        <Plus className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Rest duration */}
+            <div>
+                <p className="text-white/35 text-[10px] font-bold uppercase tracking-widest mb-2">Rest Between Sets</p>
+                <div className="flex gap-2">
+                    {REST_PRESETS.map(s => (
+                        <button key={s} onClick={() => setRestDuration(s)}
+                            className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all ${restDuration === s
+                                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow shadow-orange-500/20'
+                                : 'bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}>
+                            {s}s
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Exercise summary preview */}
+            {name.trim() && (
+                <div className="flex items-center gap-3 bg-violet-500/10 border border-violet-500/20 rounded-2xl px-4 py-3">
+                    <Target className="w-5 h-5 text-violet-400 flex-shrink-0" />
+                    <p className="text-white/80 text-sm">
+                        <span className="font-bold text-violet-300">{name}</span>
+                        {' — '}{targetSets} set{targetSets !== 1 ? 's' : ''}
+                        {' · '}{fmt(restDuration)} rest between sets
+                    </p>
+                </div>
+            )}
+
+            {/* Start button */}
+            <button
+                onClick={() => onStart({ name: name.trim(), targetSets, restDuration })}
+                disabled={!name.trim()}
+                className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-base bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/30 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed">
+                <Play className="w-5 h-5" />
+                Start {name.trim() ? `"${name.trim()}"` : 'Exercise'}
+                <ArrowRight className="w-4 h-4" />
+            </button>
+        </div>
+    );
+};
+
+/* ══════════════════════════════════════════════════════════
+   PHASE: ACTIVE — guided through each set
+══════════════════════════════════════════════════════════ */
+const ActivePhase = ({ exercise, onSetComplete, onExerciseDone, onSkipRest }) => {
+    const [isRunning, setIsRunning] = useState(false);
+    const [setTimer, setSetTimer] = useState(0);
     const [completedSets, setCompletedSets] = useState([]);
-    const [showCompletedAnimation, setShowCompletedAnimation] = useState(false);
+    const [isResting, setIsResting] = useState(false);
+    const [restTime, setRestTime] = useState(0);
+    const [isDone, setIsDone] = useState(false);
 
-    // Workout timer
-    useEffect(() => {
-        let interval;
-        if (isRunning && !isResting) {
-            interval = setInterval(() => {
-                setWorkoutTime(prev => prev + 1);
-                setExerciseTime(prev => prev + 1);
-            }, 1000);
-        }
-        return () => clearInterval(interval);
-    }, [isRunning, isResting]);
+    const currentSetNum = completedSets.length + 1;
+    const isLastSet = currentSetNum === exercise.targetSets;
+    const allDone = completedSets.length === exercise.targetSets;
 
-    // Rest timer (countdown)
+    /* Set clock */
     useEffect(() => {
-        let interval;
-        if (isRunning && isResting && restTime > 0) {
-            interval = setInterval(() => {
-                setRestTime(prev => {
-                    if (prev <= 1) {
-                        playAlert();
-                        setIsResting(false);
-                        return 0;
-                    }
-                    // Play warning beep at 3 seconds
-                    if (prev === 3) {
-                        playWarningBeep();
-                    }
-                    return prev - 1;
+        let t;
+        if (isRunning && !isResting && !allDone) t = setInterval(() => setSetTimer(p => p + 1), 1000);
+        return () => clearInterval(t);
+    }, [isRunning, isResting, allDone]);
+
+    /* Rest clock */
+    useEffect(() => {
+        let t;
+        if (isResting && restTime > 0) {
+            t = setInterval(() => {
+                setRestTime(p => {
+                    if (p <= 1) { beep(880); setIsResting(false); setIsRunning(false); return 0; }
+                    if (p === 3) beep(600);
+                    return p - 1;
                 });
             }, 1000);
         }
-        return () => clearInterval(interval);
-    }, [isRunning, isResting, restTime]);
+        return () => clearInterval(t);
+    }, [isResting, restTime]);
 
-    const playAlert = () => {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5);
+    const beep = (freq) => {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator(), g = ctx.createGain();
+            osc.connect(g); g.connect(ctx.destination);
+            osc.frequency.value = freq; osc.type = 'sine';
+            g.gain.setValueAtTime(0.25, ctx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+            osc.start(); osc.stop(ctx.currentTime + 0.4);
+        } catch (e) { }
     };
 
-    const playWarningBeep = () => {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        oscillator.frequency.value = 600;
-        oscillator.type = 'sine';
-
-        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.2);
-    };
-
-    const formatTime = (seconds) => {
-        const hrs = Math.floor(seconds / 3600);
-        const mins = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-
-        if (hrs > 0) {
-            return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        }
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const handleStartPause = () => {
-        setIsRunning(!isRunning);
-    };
-
-    const handleReset = async () => {
-        // Save session before resetting if there was any workout activity
-        if (workoutTime > 0 && onSaveSession) {
-
-            // Show saving state (optional, or just await)
-            const session = {
-                date: new Date().toISOString(),
-                totalTime: workoutTime,
-                setsCompleted: completedSets.length,
-                exercises: completedSets,
-                exerciseName: exerciseName || 'Workout'
-            };
-
-            const result = await onSaveSession(session);
-
-            // If save failed because of auth, don't reset timer
-            if (result && !result.success) {
-                return;
-            }
-        }
-
+    const handleDoneSet = () => {
+        const setData = { set: currentSetNum, duration: setTimer };
+        const next = [...completedSets, setData];
+        setCompletedSets(next);
+        onSetComplete(setData);
+        setSetTimer(0);
         setIsRunning(false);
-        setWorkoutTime(0);
-        setExerciseTime(0);
-        setRestTime(0);
-        setIsResting(false);
-        setCurrentSet(1);
-        setCompletedSets([]);
-    };
 
-    const handleCompleteSet = () => {
-        const setData = {
-            set: currentSet,
-            name: exerciseName || 'Exercise',
-            duration: exerciseTime
-        };
-
-        const newCompletedSets = [...completedSets, setData];
-        setCompletedSets(newCompletedSets);
-
-        // Sync progress immediately
-        if (onSaveProgress) {
-            onSaveProgress({
-                date: new Date().toISOString(),
-                totalTime: workoutTime,
-                exercises: newCompletedSets,
-                exerciseName: exerciseName || 'Workout'
-            });
+        if (next.length === exercise.targetSets) {
+            setIsDone(true);
+            beep(1000);
+        } else {
+            setIsResting(true);
+            setRestTime(exercise.restDuration);
         }
-
-        setCurrentSet(currentSet + 1);
-        setExerciseTime(0);
-
-        // Show animation
-        setShowCompletedAnimation(true);
-        setTimeout(() => setShowCompletedAnimation(false), 1000);
-
-        // Start rest timer
-        setIsResting(true);
-        setRestTime(restDuration);
     };
 
-    const handleSkipRest = () => {
-        setIsResting(false);
-        setRestTime(0);
+    const skipRest = () => { setIsResting(false); setRestTime(0); };
+
+    /* ── All sets done screen ── */
+    if (isDone) {
+        return (
+            <div className="px-5 py-6 flex flex-col items-center gap-5 text-center">
+                <div className="bg-gradient-to-br from-green-400 to-emerald-500 w-16 h-16 rounded-full flex items-center justify-center shadow-xl shadow-green-500/30 text-3xl">
+                    🏆
+                </div>
+                <div>
+                    <h3 className="text-white font-bold text-xl">{exercise.name} — Done!</h3>
+                    <p className="text-white/50 text-sm mt-1">
+                        {exercise.targetSets} sets
+                    </p>
+                </div>
+                {/* Set recap */}
+                <div className="w-full space-y-2">
+                    {completedSets.map((s, i) => (
+                        <div key={i} className="flex items-center justify-between bg-white/5 border border-white/8 rounded-xl px-4 py-2.5" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+                            <div className="flex items-center gap-2">
+                                <span className="bg-green-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{s.set}</span>
+                                <span className="text-white/80 text-sm">Set {s.set}</span>
+                            </div>
+                            <span className="text-white/40 text-xs font-mono">{fmt(s.duration)}</span>
+                        </div>
+                    ))}
+                </div>
+                <button onClick={() => onExerciseDone(completedSets)}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/25 transition-all hover:scale-[1.02]">
+                    <Plus className="w-4 h-4" />
+                    Add Next Exercise
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="px-5 py-4 flex flex-col gap-4">
+            {/* Exercise title + set progress dots */}
+            <div className="text-center">
+                <h3 className="text-white font-bold text-lg">{exercise.name}</h3>
+                <p className="text-white/40 text-xs mb-3">{exercise.targetSets} sets planned</p>
+                <SetDots total={exercise.targetSets} completed={completedSets.length} current={isRunning || setTimer > 0} />
+                <p className="text-white/40 text-xs mt-2">
+                    {isResting ? `Resting — Set ${currentSetNum} next` : `Set ${currentSetNum} of ${exercise.targetSets}`}
+                </p>
+            </div>
+
+            {/* Timer area */}
+            {isResting ? (
+                <div className="flex flex-col items-center py-2">
+                    <div className="relative w-36 h-36">
+                        <div className="absolute inset-0 rounded-full bg-orange-500/10 blur-xl" />
+                        <RestRing restTime={restTime} restDuration={exercise.restDuration} />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className={`text-4xl font-bold font-mono ${restTime <= 3 ? 'text-red-400 animate-pulse' : 'text-white'}`}>{fmt(restTime)}</span>
+                            <span className="text-orange-400 text-[10px] font-bold uppercase tracking-wider mt-0.5">Rest</span>
+                        </div>
+                    </div>
+                    <p className="text-white/35 text-xs mt-1.5">
+                        {isLastSet ? 'Last set coming up!' : `Get ready for set ${currentSetNum} 💪`}
+                    </p>
+                </div>
+            ) : (
+                <div className={`rounded-2xl p-6 text-center relative overflow-hidden transition-all duration-500 ${isRunning
+                    ? 'bg-gradient-to-br from-violet-500/15 to-fuchsia-500/10 border border-violet-400/25'
+                    : 'bg-white/5 border border-white/8'
+                    }`} style={{ borderColor: !isRunning ? 'rgba(255,255,255,0.07)' : undefined }}>
+                    {isRunning && (
+                        <div className="absolute inset-0 opacity-15 animate-pulse">
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-violet-400/40 to-transparent" />
+                        </div>
+                    )}
+                    <div className="relative z-10">
+                        <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${isRunning ? 'text-violet-300' : 'text-white/25'}`}>
+                            {isRunning ? `Set ${currentSetNum} — In Progress` : `Press Start for Set ${currentSetNum}`}
+                        </p>
+                        <div className={`text-7xl font-bold font-mono leading-none mb-2 ${isRunning ? 'text-white' : 'text-white/30'}`}>
+                            {fmt(setTimer)}
+                        </div>
+                        <p className={`text-sm ${isRunning ? 'text-white/50' : 'text-white/20'}`}>
+                            {isRunning ? (isLastSet ? 'Make it count — last set! 🔥' : 'Keep going 💪') : `Target: ${exercise.reps} reps`}
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Controls */}
+            <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setIsRunning(p => !p)} disabled={isResting}
+                    className={`flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all hover:scale-[1.02] active:scale-95 shadow-lg disabled:opacity-40 text-white ${isRunning
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-amber-500/25'
+                        : 'bg-gradient-to-r from-green-400 to-emerald-500 shadow-green-500/25'
+                        }`}>
+                    {isRunning ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                    {isRunning ? 'Pause' : setTimer > 0 ? 'Resume' : 'Start'}
+                </button>
+
+                {isResting ? (
+                    <button onClick={skipRest}
+                        className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/25 transition-all hover:scale-[1.02] active:scale-95">
+                        <SkipForward className="w-5 h-5" />
+                        Skip Rest
+                    </button>
+                ) : (
+                    <button onClick={handleDoneSet} disabled={setTimer === 0}
+                        className={`flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${isLastSet
+                            ? 'bg-gradient-to-r from-green-400 to-emerald-500 shadow-green-500/25'
+                            : 'bg-gradient-to-r from-violet-500 to-fuchsia-500 shadow-violet-500/25'
+                            }`}>
+                        <CheckCircle className="w-5 h-5" />
+                        {isLastSet ? 'Finish!' : 'Done Set'}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
+
+/* ══════════════════════════════════════════════════════════
+   ROOT COMPONENT
+══════════════════════════════════════════════════════════ */
+const WorkoutTimer = ({ onClose, onSaveSession, onSaveProgress }) => {
+    const [phase, setPhase] = useState('plan');      // 'plan' | 'active'
+    const [currentExercise, setCurrentExercise] = useState(null);
+    const [sessionExercises, setSessionExercises] = useState([]);
+    const [workoutTime, setWorkoutTime] = useState(0);
+    const [sessionRunning, setSessionRunning] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [showLog, setShowLog] = useState(false);
+
+    const totalSets = sessionExercises.reduce((s, e) => s + e.sets.length, 0);
+
+    /* Session clock */
+    useEffect(() => {
+        let t;
+        if (sessionRunning) t = setInterval(() => setWorkoutTime(p => p + 1), 1000);
+        return () => clearInterval(t);
+    }, [sessionRunning]);
+
+    const buildSession = (exList) => ({
+        date: new Date().toISOString(),
+        totalTime: workoutTime,
+        setsCompleted: exList.reduce((s, e) => s + e.sets.length, 0),
+        exercises: exList,
+        exerciseName: exList[0]?.name || 'Workout',
+    });
+
+    const handleStart = (config) => {
+        setCurrentExercise(config);
+        setSessionRunning(true);
+        setPhase('active');
+    };
+
+    const handleSetComplete = (setData) => {
+        setSessionExercises(prev => {
+            const idx = prev.findIndex(e => e.name === currentExercise.name);
+            let next;
+            if (idx >= 0) {
+                next = [...prev];
+                next[idx] = { ...next[idx], sets: [...next[idx].sets, setData] };
+            } else {
+                next = [...prev, { name: currentExercise.name, sets: [setData] }];
+            }
+            if (onSaveProgress) onSaveProgress(buildSession(next));
+            return next;
+        });
+    };
+
+    const handleExerciseDone = (completedSets) => {
+        setCurrentExercise(null);
+        setPhase('plan');
+    };
+
+    const handleSave = async () => {
+        if (workoutTime === 0 && totalSets === 0) return;
+        setSaving(true);
+        const result = await onSaveSession(buildSession(sessionExercises));
+        setSaving(false);
+        if (result && !result.success) return;
+        setSessionRunning(false);
+        setWorkoutTime(0);
+        setSessionExercises([]);
+        setPhase('plan');
+        setCurrentExercise(null);
     };
 
     const handleClose = async () => {
-        // Save session if there was any workout activity
-        if (workoutTime > 0 && onSaveSession) {
-            const session = {
-                date: new Date().toISOString(),
-                totalTime: workoutTime,
-                setsCompleted: completedSets.length,
-                exercises: completedSets,
-                exerciseName: exerciseName || 'Workout'
-            };
-            const result = await onSaveSession(session);
-            if (result && !result.success) return; // Don't close if save failed (e.g. auth needed)
+        if ((workoutTime > 0 || totalSets > 0) && onSaveSession) {
+            setSaving(true);
+            const result = await onSaveSession(buildSession(sessionExercises));
+            setSaving(false);
+            if (result && !result.success) return;
         }
         onClose();
     };
 
-    // Calculate progress percentage for rest timer
-    const restProgress = restDuration > 0 ? ((restDuration - restTime) / restDuration) * 100 : 0;
-
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-start justify-center z-50 p-4 animate-fadeIn overflow-y-auto">
-            <div className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 rounded-3xl p-5 sm:p-8 max-w-3xl w-full shadow-2xl border border-purple-500/30 animate-slideUp my-4 sm:my-8">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4 sm:mb-6">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-3 rounded-2xl shadow-lg">
-                            <Timer className="w-7 h-7 text-white" />
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-start justify-center z-50 p-3 sm:p-6 overflow-y-auto">
+            <div className="bg-gradient-to-b from-slate-900 via-[#170f2a] to-slate-900 rounded-3xl w-full max-w-md shadow-2xl border border-white/10 my-4"
+                style={{ animation: 'twSlide .35s cubic-bezier(.4,0,.2,1)' }}>
+
+                {/* ── Header ── */}
+                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+                    <div className="flex items-center gap-2.5">
+                        <div className="bg-gradient-to-br from-violet-500 to-fuchsia-500 p-2 rounded-xl shadow-lg shadow-violet-500/30">
+                            <Dumbbell className="w-4 h-4 text-white" />
                         </div>
                         <div>
-                            <h2 className="text-2xl font-bold text-white">Workout Timer</h2>
-                            <p className="text-purple-300 text-sm">Track your sets & rest periods</p>
+                            <h2 className="text-base font-bold text-white leading-tight">
+                                {phase === 'plan' ? 'Plan Exercise' : currentExercise?.name}
+                            </h2>
+                            <p className="text-white/35 text-[11px]">
+                                {sessionExercises.length} exercise{sessionExercises.length !== 1 ? 's' : ''} · {totalSets} sets done
+                            </p>
                         </div>
                     </div>
-                    <button
-                        onClick={handleClose}
-                        className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all hover:rotate-90 duration-300"
-                    >
-                        <X className="w-6 h-6 text-white" />
-                    </button>
-                </div>
-
-                {/* Exercise Name Input */}
-                <div className="mb-4 sm:mb-6">
-                    <label className="text-purple-300 text-sm font-semibold mb-2 block">Exercise Name</label>
-                    <div className="flex gap-2">
-                        <input
-                            type="text"
-                            value={exerciseName}
-                            onChange={(e) => setExerciseName(e.target.value)}
-                            placeholder="e.g., Bench Press, Squats..."
-                            className="w-full px-4 py-3 rounded-xl bg-white/10 border-2 border-purple-500/30 text-white placeholder-white/40 font-semibold text-lg focus:outline-none focus:border-purple-400 transition-all"
-                        />
-                        {exerciseName && (
-                            <a
-                                href={`https://www.youtube.com/results?search_query=how+to+do+${encodeURIComponent(exerciseName)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl flex items-center justify-center transition-colors shadow-lg"
-                                title="Watch Tutorial"
-                            >
-                                <Youtube className="w-6 h-6" />
-                            </a>
-                        )}
-                    </div>
-                </div>
-
-                {/* Main Timer Display */}
-                <div className={`relative overflow-hidden rounded-3xl p-5 sm:p-8 mb-4 sm:mb-6 text-center transition-all duration-500 ${isResting
-                    ? 'bg-gradient-to-br from-orange-500/20 to-red-500/20 border-2 border-orange-400/50'
-                    : 'bg-gradient-to-br from-green-500/20 to-emerald-500/20 border-2 border-green-400/50'
-                    }`}>
-                    {/* Background Animation */}
-                    <div className={`absolute inset-0 opacity-20 ${isRunning ? 'animate-pulse' : ''}`}>
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent transform -skew-x-12"></div>
-                    </div>
-
-                    <div className="relative z-10">
-                        {isResting ? (
-                            <>
-                                <div className="flex items-center justify-center gap-2 mb-4">
-                                    <Zap className="w-6 h-6 text-orange-300 animate-bounce" />
-                                    <p className="text-orange-300 font-bold text-xl uppercase tracking-wide">Rest Time</p>
-                                    <Zap className="w-6 h-6 text-orange-300 animate-bounce" />
-                                </div>
-                                <div className={`text-6xl sm:text-8xl font-bold mb-4 transition-all ${restTime <= 3 ? 'text-red-400 animate-pulse' : 'text-white'
-                                    }`}>
-                                    {formatTime(restTime)}
-                                </div>
-
-                                {/* Progress Bar */}
-                                <div className="w-full bg-white/20 rounded-full h-3 mb-4 overflow-hidden">
-                                    <div
-                                        className="bg-gradient-to-r from-orange-400 to-red-500 h-full rounded-full transition-all duration-1000 ease-linear"
-                                        style={{ width: `${restProgress}%` }}
-                                    ></div>
-                                </div>
-
-                                <p className="text-white/70 text-lg">Get ready for the next set!</p>
-                            </>
-                        ) : (
-                            <>
-                                <div className="flex items-center justify-center gap-2 mb-4">
-                                    <TrendingUp className="w-6 h-6 text-green-300" />
-                                    <p className="text-green-300 font-bold text-xl uppercase tracking-wide">Exercise Time</p>
-                                </div>
-                                <div className="text-6xl sm:text-8xl font-bold text-white mb-2">
-                                    {formatTime(exerciseTime)}
-                                </div>
-                                <p className="text-white/70 text-lg">Keep pushing! 💪</p>
-                            </>
-                        )}
-                    </div>
-                </div>
-
-                {/* Stats Grid */}
-                <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
-                    <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-400/30 rounded-2xl p-3 sm:p-4 text-center hover:scale-105 transition-transform">
-                        <Clock className="w-6 h-6 text-blue-300 mx-auto mb-2" />
-                        <p className="text-xs text-blue-200 mb-1 uppercase tracking-wide">Total Time</p>
-                        <p className="text-2xl font-bold text-white">{formatTime(workoutTime)}</p>
-                    </div>
-                    <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-400/30 rounded-2xl p-3 sm:p-4 text-center hover:scale-105 transition-transform">
-                        <CheckCircle className="w-6 h-6 text-purple-300 mx-auto mb-2" />
-                        <p className="text-xs text-purple-200 mb-1 uppercase tracking-wide">{exerciseName || 'Exercise'} Set</p>
-                        <p className="text-2xl font-bold text-white">{currentSet}</p>
-                    </div>
-                    <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-400/30 rounded-2xl p-3 sm:p-4 text-center">
-                        <Timer className="w-6 h-6 text-orange-300 mx-auto mb-2" />
-                        <p className="text-xs text-orange-200 mb-1 uppercase tracking-wide">Rest (sec)</p>
-                        <input
-                            type="number"
-                            value={restDuration}
-                            onChange={(e) => setRestDuration(Math.max(10, parseInt(e.target.value) || 60))}
-                            className="w-full text-2xl font-bold text-white bg-transparent text-center focus:outline-none hover:bg-white/10 rounded-lg transition-all"
-                            disabled={isRunning}
-                        />
-                    </div>
-                </div>
-
-                {/* Control Buttons */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                    <button
-                        onClick={handleStartPause}
-                        className={`group relative overflow-hidden flex items-center justify-center gap-2 py-3 sm:py-4 rounded-2xl font-bold text-lg transition-all transform hover:scale-105 shadow-lg ${isRunning
-                            ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-gray-900'
-                            : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white'
-                            }`}
-                    >
-                        <div className="absolute inset-0 bg-white/20 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-                        <div className="relative z-10 flex items-center gap-2">
-                            {isRunning ? (
-                                <>
-                                    <Pause className="w-6 h-6" />
-                                    Pause
-                                </>
-                            ) : (
-                                <>
-                                    <Play className="w-6 h-6" />
-                                    Start
-                                </>
-                            )}
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5">
+                            <Clock className="w-3.5 h-3.5 text-blue-300" />
+                            <span className="font-mono font-bold text-sm text-white">{fmt(workoutTime)}</span>
                         </div>
-                    </button>
-
-                    {isResting ? (
-                        <button
-                            onClick={handleSkipRest}
-                            className="group relative overflow-hidden flex items-center justify-center gap-2 py-3 sm:py-4 rounded-2xl font-bold text-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white transition-all transform hover:scale-105 shadow-lg"
-                        >
-                            <div className="absolute inset-0 bg-white/20 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-                            <div className="relative z-10 flex items-center gap-2">
-                                <SkipForward className="w-6 h-6" />
-                                Skip Rest
-                            </div>
+                        <button onClick={handleClose} disabled={saving} className="p-1.5 bg-white/5 hover:bg-white/15 border border-white/10 rounded-xl transition-all">
+                            <X className="w-5 h-5 text-white/50" />
                         </button>
-                    ) : (
-                        <button
-                            onClick={handleCompleteSet}
-                            disabled={!isRunning && exerciseTime === 0}
-                            className="group relative overflow-hidden flex items-center justify-center gap-2 py-3 sm:py-4 rounded-2xl font-bold text-lg bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white transition-all transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                        >
-                            <div className="absolute inset-0 bg-white/20 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-                            <div className="relative z-10 flex items-center gap-2">
-                                <CheckCircle className="w-6 h-6" />
-                                Complete Set
-                            </div>
-                        </button>
-                    )}
+                    </div>
                 </div>
 
-                <button
-                    onClick={handleReset}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white transition-all transform hover:scale-105 shadow-lg"
-                >
-                    <RotateCcw className="w-5 h-5" />
-                    Save & Reset Workout
-                </button>
+                {/* ── Phase content ── */}
+                {phase === 'plan'
+                    ? <PlanPhase onStart={handleStart} totalSessionTime={workoutTime} exercisesDone={sessionExercises.length} />
+                    : <ActivePhase
+                        exercise={currentExercise}
+                        onSetComplete={handleSetComplete}
+                        onExerciseDone={handleExerciseDone}
+                        onSkipRest={() => { }}
+                    />
+                }
 
-                {/* Completed Sets Log */}
-                {completedSets.length > 0 && (
-                    <div className="mt-6 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-4 border border-white/20">
-                        <h3 className="text-white font-bold mb-3 flex items-center gap-2">
-                            <CheckCircle className="w-5 h-5 text-green-400" />
-                            Completed Sets ({completedSets.length})
-                        </h3>
-                        <div className="space-y-2">
-                            {completedSets.map((set, index) => (
-                                <div
-                                    key={index}
-                                    className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-400/30 rounded-xl p-3 flex items-center justify-between hover:scale-102 transition-transform"
-                                    style={{ animationDelay: `${index * 100}ms` }}
-                                >
-                                    <div>
-                                        <p className="text-white font-semibold flex items-center gap-2">
-                                            <span className="bg-green-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold">
-                                                {set.set}
-                                            </span>
-                                            {set.name}
-                                        </p>
-                                        <p className="text-green-200 text-sm ml-8">Duration: {formatTime(set.duration)}</p>
+                {/* ── Session log + Save (always visible at bottom) ── */}
+                {sessionExercises.length > 0 && (
+                    <div className="px-5 pb-5 flex flex-col gap-3 border-t pt-4" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+                        {/* Collapsible log */}
+                        <button onClick={() => setShowLog(p => !p)}
+                            className="w-full flex items-center justify-between bg-white/5 border border-white/8 rounded-2xl px-4 py-2.5 text-white/60 hover:text-white transition-colors text-sm font-semibold"
+                            style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+                            <div className="flex items-center gap-2">
+                                <Flame className="w-4 h-4 text-orange-400" />
+                                Session Log — {sessionExercises.length} exercise{sessionExercises.length !== 1 ? 's' : ''}, {totalSets} sets
+                            </div>
+                            {showLog ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+
+                        {showLog && (
+                            <div className="bg-white/5 border border-white/8 rounded-2xl overflow-hidden max-h-48 overflow-y-auto" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+                                {sessionExercises.map((ex, ei) => (
+                                    <div key={ei} className={ei > 0 ? 'border-t' : ''} style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                                        <div className="flex items-center justify-between px-4 py-2.5">
+                                            <div className="flex items-center gap-2">
+                                                <div className="bg-violet-500/30 w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                    <Dumbbell className="w-3 h-3 text-violet-300" />
+                                                </div>
+                                                <span className="text-white font-semibold text-sm">{ex.name}</span>
+                                            </div>
+                                            <span className="text-violet-300 text-xs font-bold">{ex.sets.length} sets</span>
+                                        </div>
+                                        <div className="px-4 pb-2.5 space-y-1">
+                                            {ex.sets.map((set, si) => (
+                                                <div key={si} className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-1.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="bg-green-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{set.set}</span>
+                                                        <span className="text-white/70 text-xs">Set {set.set}</span>
+                                                    </div>
+                                                    <span className="text-white/35 text-xs font-mono">{fmt(set.duration)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <CheckCircle className="w-5 h-5 text-green-400" />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                                ))}
+                            </div>
+                        )}
 
-                {/* Completed Animation */}
-                {showCompletedAnimation && (
-                    <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
-                        <div className="text-8xl animate-ping">✅</div>
+                        <button onClick={handleSave} disabled={saving}
+                            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-lg shadow-pink-600/20 transition-all hover:scale-[1.01] active:scale-95 disabled:opacity-40">
+                            <RotateCcw className={`w-4 h-4 ${saving ? 'animate-spin' : ''}`} />
+                            {saving ? 'Saving…' : 'Save & Finish Workout'}
+                        </button>
                     </div>
                 )}
             </div>
 
-            <style jsx>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from { transform: translateY(20px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-        .animate-slideUp {
-          animation: slideUp 0.4s ease-out;
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(139, 92, 246, 0.5);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(139, 92, 246, 0.7);
-        }
-      `}</style>
+            <style>{`
+                @keyframes twSlide {
+                    from { transform: translateY(28px); opacity: 0; }
+                    to   { transform: translateY(0); opacity: 1; }
+                }
+            `}</style>
         </div>
     );
 };

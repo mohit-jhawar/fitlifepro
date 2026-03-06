@@ -5,8 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 const ScoreChip = ({ score }) => {
     const color =
         score >= 80 ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-        score >= 60 ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
-                     'bg-red-500/20 text-red-400 border-red-500/30';
+            score >= 60 ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                'bg-red-500/20 text-red-400 border-red-500/30';
     return (
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${color}`}>
             Score: {score}
@@ -20,7 +20,7 @@ const WeeklyReportCard = ({ summary, onOpen }) => {
     const formatRange = (start, end) => {
         const s = new Date(start);
         const e = new Date(end);
-        return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
     };
 
     return (
@@ -108,6 +108,103 @@ const WeeklyReportCard = ({ summary, onOpen }) => {
                     )}
                 </div>
             )}
+        </div>
+    );
+};
+
+/* ─── Expandable Recent Workout session card ─── */
+export const RecentWorkoutList = ({ sessions }) => {
+    const [expanded, setExpanded] = useState(null);
+    const fmtSec = (s) => {
+        const m = Math.floor((s || 0) / 60), sec = (s || 0) % 60;
+        return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+    };
+    const sorted = [...sessions]
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .filter(function (s) { var d = new Date(s.date), ago = new Date(); ago.setDate(ago.getDate() - 10); return d >= ago; }).slice(0, 10);
+
+    return (
+        <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+            {sorted.map((session, idx) => {
+                const hasExercises = Array.isArray(session.exercises) && session.exercises.length > 0;
+                const sessionTitle = hasExercises
+                    ? session.exercises.map(e => e.name).join(', ')
+                    : (session.exerciseName || session.exercise_name || 'Workout');
+                const exCount = hasExercises ? session.exercises.length : null;
+                const isOpen = expanded === idx;
+
+                return (
+                    <div key={idx} className="border border-gray-200 rounded-xl overflow-hidden transition-all">
+                        {/* Header row */}
+                        <button
+                            onClick={() => setExpanded(isOpen ? null : idx)}
+                            className="w-full flex items-center justify-between gap-2 p-4 hover:bg-gray-50 transition-colors text-left"
+                        >
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="bg-gradient-to-br from-purple-500 to-pink-500 w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <Dumbbell className="w-4 h-4 text-white" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h4 className="font-semibold text-gray-900 text-sm truncate max-w-[180px] sm:max-w-xs">{sessionTitle}</h4>
+                                    <p className="text-xs text-gray-500">
+                                        {new Date(session.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                                <div className="text-right hidden sm:block">
+                                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">Duration</p>
+                                    <p className="font-semibold text-gray-900 text-sm">{fmtSec(session.totalTime)}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">Sets</p>
+                                    <p className="font-semibold text-gray-900 text-sm">{typeof session.setsCompleted === 'number' ? session.setsCompleted : (Array.isArray(session.exercises) ? session.exercises.reduce(function (s, e) { return s + (e.sets || []).length }, 0) : 0)}</p>
+                                </div>
+                                {exCount && (
+                                    <div className="text-right">
+                                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Exercises</p>
+                                        <p className="font-semibold text-purple-600 text-sm">{exCount}</p>
+                                    </div>
+                                )}
+                                {hasExercises
+                                    ? (isOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />)
+                                    : null
+                                }
+                            </div>
+                        </button>
+
+                        {/* Expanded: exercise breakdown */}
+                        {isOpen && hasExercises && (
+                            <div className="border-t border-gray-100 bg-gray-50 px-4 py-3 space-y-2">
+                                {session.exercises.map((ex, ei) => {
+                                    const totalExTime = (ex.sets || []).reduce((sum, s) => sum + (s.duration || 0), 0);
+                                    return (
+                                        <div key={ei} className="flex items-center justify-between bg-white rounded-lg border border-gray-100 px-3 py-2.5">
+                                            <div className="flex items-center gap-2">
+                                                <div className="bg-purple-100 w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0">
+                                                    <Dumbbell className="w-3 h-3 text-purple-600" />
+                                                </div>
+                                                <span className="text-gray-900 font-semibold text-sm">{ex.name}</span>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="text-right">
+                                                    <p className="text-[10px] text-gray-400">Sets</p>
+                                                    <p className="text-sm font-bold text-gray-900">{(ex.sets || []).length}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[10px] text-gray-400">Time</p>
+                                                    <p className="text-sm font-bold text-gray-900">{fmtSec(totalExTime)}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                <p className="text-[10px] text-gray-400 text-right pt-1">Total session: {fmtSec(session.totalTime)}</p>
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );
 };
@@ -205,24 +302,28 @@ const Analytics = ({ workoutSessions, onBack, weeklySummaries = [], onOpenSummar
                 totalMinutes: 0,
                 avgDuration: 0,
                 thisWeek: 0,
-                thisMonth: 0
+                thisMonth: 0,
+                thisMonthMinutes: 0
             };
         }
 
         const now = new Date();
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        // Use calendar month start for accurate monthly stats
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
         const totalMinutes = workoutSessions.reduce((sum, s) => sum + ((s.totalTime || 0) / 60), 0);
         const thisWeekSessions = workoutSessions.filter(s => new Date(s.date) >= weekAgo);
-        const thisMonthSessions = workoutSessions.filter(s => new Date(s.date) >= monthAgo);
+        const thisMonthSessions = workoutSessions.filter(s => new Date(s.date) >= monthStart);
+        const thisMonthMinutes = thisMonthSessions.reduce((sum, s) => sum + ((s.totalTime || 0) / 60), 0);
 
         return {
             totalWorkouts: workoutSessions.length,
             totalMinutes,
             avgDuration: totalMinutes / workoutSessions.length,
             thisWeek: thisWeekSessions.length,
-            thisMonth: thisMonthSessions.length
+            thisMonth: thisMonthSessions.length,
+            thisMonthMinutes
         };
     }, [workoutSessions]);
 
@@ -443,21 +544,34 @@ const Analytics = ({ workoutSessions, onBack, weeklySummaries = [], onOpenSummar
                     </div>
                 </div>
 
-                {/* Summary Stats */}
+                {/* Monthly Summary */}
                 <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-lg mb-12">
-                    <h3 className="text-xl font-bold text-gray-900 mb-6">Overall Summary</h3>
+                    <div className="flex items-center gap-2 mb-6">
+                        <Calendar className="w-5 h-5 text-purple-500" />
+                        <h3 className="text-xl font-bold text-gray-900">Monthly Summary</h3>
+                        <span className="ml-auto text-xs text-gray-400 font-medium bg-gray-100 px-3 py-1 rounded-full">
+                            {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        </span>
+                    </div>
                     <div className="grid grid-cols-3 gap-6">
-                        <div className="text-center">
-                            <p className="text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">Total Workouts</p>
-                            <p className="text-3xl sm:text-4xl font-bold text-purple-600">{stats.totalWorkouts}</p>
+                        <div className="text-center p-4 bg-purple-50 rounded-2xl border border-purple-100">
+                            <p className="text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">Workouts</p>
+                            <p className="text-3xl sm:text-4xl font-bold text-purple-600">{stats.thisMonth}</p>
+                            <p className="text-xs text-gray-400 mt-1">this month</p>
                         </div>
-                        <div className="text-center">
-                            <p className="text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">Total Time</p>
-                            <p className="text-3xl sm:text-4xl font-bold text-cyan-600">{Math.floor(stats.totalMinutes / 60)}h</p>
+                        <div className="text-center p-4 bg-cyan-50 rounded-2xl border border-cyan-100">
+                            <p className="text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">Time</p>
+                            <p className="text-3xl sm:text-4xl font-bold text-cyan-600">
+                                {stats.thisMonthMinutes >= 60
+                                    ? `${Math.floor(stats.thisMonthMinutes / 60)}h ${Math.round(stats.thisMonthMinutes % 60)}m`
+                                    : `${Math.round(stats.thisMonthMinutes)}m`}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">this month</p>
                         </div>
-                        <div className="text-center">
-                            <p className="text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">This Month</p>
-                            <p className="text-3xl sm:text-4xl font-bold text-emerald-600">{stats.thisMonth}</p>
+                        <div className="text-center p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                            <p className="text-gray-500 text-xs sm:text-sm mb-1 sm:mb-2">Avg Duration</p>
+                            <p className="text-3xl sm:text-4xl font-bold text-emerald-600">{Math.round(stats.avgDuration)}m</p>
+                            <p className="text-xs text-gray-400 mt-1">per session</p>
                         </div>
                     </div>
                 </div>
@@ -471,38 +585,10 @@ const Analytics = ({ workoutSessions, onBack, weeklySummaries = [], onOpenSummar
                     {workoutSessions.length === 0 ? (
                         <div className="text-center py-12">
                             <p className="text-gray-400 text-lg">No workouts logged yet</p>
-                            <p className="text-gray-500 text-sm mt-2">Start training to build your history!</p>
+                            <p className="text-gray-500 text-sm mt-2">Save a session from the timer to see it here!</p>
                         </div>
                     ) : (
-                        <div className="space-y-3 max-h-96 overflow-y-auto pr-1 sm:pr-2">
-                            {workoutSessions.slice().reverse().slice(0, 10).map((session, index) => (
-                                <div key={index} className="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-all border border-gray-200">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-1.5 sm:gap-2">
-                                            <div className="bg-gradient-to-br from-purple-500 to-pink-500 w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center">
-                                                <Dumbbell className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                                            </div>
-                                            <div>
-                                                <h4 className="font-semibold text-gray-900 text-sm sm:text-base">{session.exerciseName}</h4>
-                                                <p className="text-xs text-gray-500">
-                                                    {new Date(session.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3 sm:gap-4">
-                                            <div className="text-right">
-                                                <p className="text-xs text-gray-500">Duration</p>
-                                                <p className="font-semibold text-gray-900 text-sm sm:text-base">{Math.floor(session.totalTime / 60)}m {session.totalTime % 60}s</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-xs text-gray-500">Sets</p>
-                                                <p className="font-semibold text-gray-900 text-sm sm:text-base">{session.setsCompleted}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        <RecentWorkoutList sessions={workoutSessions} />
                     )}
                 </div>
 
@@ -526,9 +612,15 @@ const Analytics = ({ workoutSessions, onBack, weeklySummaries = [], onOpenSummar
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {weeklySummaries.map((summary) => (
+                            {Object.values(weeklySummaries.reduce((acc, curr) => {
+                                const key = new Date(curr.weekStartDate).toISOString().split('T')[0];
+                                if (!acc[key] || new Date(curr.weekEndDate) > new Date(acc[key].weekEndDate)) {
+                                    acc[key] = curr;
+                                }
+                                return acc;
+                            }, {})).sort((a, b) => new Date(b.weekStartDate) - new Date(a.weekStartDate)).map((summary) => (
                                 <WeeklyReportCard
-                                    key={summary._id}
+                                    key={summary._id || summary.weekStartDate}
                                     summary={summary}
                                     onOpen={onOpenSummary}
                                 />
